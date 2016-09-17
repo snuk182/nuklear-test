@@ -1,0 +1,17 @@
+[package]
+name = "nr-test"
+version = "0.1.0"
+authors = ["snuk182 <snuk188@gmail.com>"]
+
+[dependencies]
+nuklear-rust = {version = "*", path = "../nuklear-rust"}
+gfx_core = "*"
+gfx_device_gl = "*"
+gfx_window_glutin = "*"
+gfx = "*"
+glutin = "*"
+image = "*"
+
+[[bin]]
+name = "t"
+path = "src/main.rs"
