@@ -44,6 +44,21 @@ struct BasicState {
     piemenu_pos: NkVec2,
 }
 
+struct ButtonState {
+	option: i32,
+    toggle0: bool,
+    toggle1: bool,
+    toggle2: bool,
+}
+
+struct GridState {
+	text: [[u8;64];3],
+    text_len: [i32; 3],
+    items: [&'static str; 3],
+    selected_item: usize,
+    check: bool,
+}
+
 struct ResourceHandle<T, R: gfx::Resources> {
 	res: ShaderResourceView<R, [f32; 4]>,
 	hnd: T,
@@ -218,7 +233,7 @@ fn main() {
 	let font_22 = atlas.add_font_with_bytes(font, 22.0).unwrap();
 	
 	let (b, fw, fh) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-	let mut font_tex = upload_atlas(&mut factory, &b, fw, fh);
+	let font_tex = upload_atlas(&mut factory, &b, fw, fh);
 	
 	let mut dev = Device {
 		cmds: NkBuffer::with_size(&mut allo, 16192),
@@ -293,11 +308,28 @@ fn main() {
 	    piemenu_pos: NkVec2::default(),
 	};
 	
+	let mut button_state = ButtonState {
+		option: 1,
+	    toggle0: true,
+	    toggle1: false,
+	    toggle2: true,
+	};
+	
+	let mut grid_state = GridState {
+		text: [[0;64];3],
+	    text_len: [0; 3],
+	    items: ["Item 0","item 1","item 2"],
+	    selected_item: 0,
+	    check: true,
+	};
+	
 	let sampler = factory.create_sampler_linear();
 	
 	let mut mx = 0;
     let mut my = 0;	
     
+	let (vbuf, mut slice) = factory.create_vertex_buffer_with_slice(&dev.vbuf, &dev.ebuf[..]);
+		
 	for event in window.wait_events() {
         
         println!("{:?}", event);
@@ -342,8 +374,10 @@ fn main() {
         ctx.input_end();
         
         basic_demo(&mut ctx, &mut media, &mut basic_state);
+        button_demo(&mut ctx, &mut media, &mut button_state);
+        grid_demo(&mut ctx, &mut media, &mut grid_state);
         
-        device_draw(&mut dev, &mut ctx, &mut media, &mut encoder, &mut factory, &sampler, w, h, scale, NkAntiAliasing::NK_ANTI_ALIASING_ON);
+        device_draw(&mut dev, &mut ctx, &mut media, &mut encoder, &mut factory, &sampler, vbuf.clone(), &mut slice, w, h, scale, NkAntiAliasing::NK_ANTI_ALIASING_ON);
         let _ = window.swap_buffers();
 
         ctx.clear();
@@ -402,6 +436,156 @@ fn ui_widget_centered<R: gfx::Resources>(ctx: &mut NkContext, media: &mut Media<
 	ctx.spacing(1);
 }
 
+fn grid_demo<R: gfx::Resources>(ctx: &mut NkContext, media: &mut Media<R>, state: &mut GridState) {
+    let mut layout = NkPanel::default();
+    let mut combo = NkPanel::default();
+    
+    ctx.style_set_font(&media.font_20.handle());
+    if ctx.begin(&mut layout, 
+	    	nk_string!("Grid Demo"), 
+	    	NkRect{x:600f32, y:350f32, w:275f32, h:250f32}, 
+	    	NkPanelFlags::NK_WINDOW_BORDER as NkFlags|NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags|NkPanelFlags::NK_WINDOW_TITLE as NkFlags|NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags) {
+        ctx.style_set_font(&media.font_18.handle());
+        ctx.layout_row_dynamic(30f32, 2);
+        ctx.label(nk_string!("Floating point:"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags, &mut state.text[0], &mut state.text_len[0], NK_FILTER_FLOAT);
+        ctx.label(nk_string!("Hexadecimal:"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags, &mut state.text[1], &mut state.text_len[1], NK_FILTER_HEX);
+        ctx.label(nk_string!("Binary:"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags, &mut state.text[2], &mut state.text_len[2], NK_FILTER_BINARY);
+        ctx.label(nk_string!("Checkbox:"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.checkbox_label(nk_string!("Check me"), &mut state.check);
+        ctx.label(nk_string!("Combobox:"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        
+        let widget_width = ctx.widget_width();
+        if ctx.combo_begin_label(&mut combo, NkString::from(state.items[state.selected_item]), NkVec2{x:widget_width, y:200f32}) {
+            ctx.layout_row_dynamic(25f32, 1);
+            for i in 0..state.text.len() {
+                if ctx.combo_item_label(NkString::from(state.items[i]), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                    state.selected_item = i;
+                }    
+            }        
+            ctx.combo_end();
+        }
+    }
+    ctx.end();
+    ctx.style_set_font(&media.font_14.handle());
+}
+
+fn button_demo<R: gfx::Resources>(ctx: &mut NkContext, media: &mut Media<R>, state: &mut ButtonState) {
+    let mut layout = NkPanel::default();
+    let mut menu = NkPanel::default();
+    
+    ctx.style_set_font(&media.font_20.handle());
+
+    ctx.begin(&mut layout, nk_string!("Button Demo"), NkRect {x:50f32, y:50f32, w:255f32, h:610f32}, NkPanelFlags::NK_WINDOW_BORDER as NkFlags|NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags|NkPanelFlags::NK_WINDOW_TITLE as NkFlags);
+
+    /*------------------------------------------------
+     *                  MENU
+     *------------------------------------------------*/
+    ctx.menubar_begin();
+    {
+        /* toolbar */
+        ctx.layout_row_static(40f32, 40, 4);
+        if ctx.menu_begin_image(&mut menu, nk_string!("Music"), media.play.hnd.clone(), NkVec2{x:110f32, y:120f32}) {
+            /* settings */
+            ctx.layout_row_dynamic(25f32, 1);
+            ctx.menu_item_image_label(media.play.hnd.clone(), nk_string!("Play"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+            ctx.menu_item_image_label(media.stop.hnd.clone(), nk_string!("Stop"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+            ctx.menu_item_image_label(media.pause.hnd.clone(), nk_string!("Pause"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+            ctx.menu_item_image_label(media.next.hnd.clone(), nk_string!("Next"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+            ctx.menu_item_image_label(media.prev.hnd.clone(), nk_string!("Prev"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+            ctx.menu_end();
+        }
+        ctx.button_image(media.tools.hnd.clone());
+        ctx.button_image(media.cloud.hnd.clone());
+        ctx.button_image(media.pen.hnd.clone());
+    }
+    ctx.menubar_end();
+
+    /*------------------------------------------------
+     *                  BUTTON
+     *------------------------------------------------*/
+    ui_header(ctx, media, "Push buttons");
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_label(nk_string!("Push me")) {
+        println!("pushed!");
+    }    
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_image_label(media.rocket.hnd.clone(), nk_string!("Styled"), NkTextAlignment::NK_TEXT_CENTERED as NkFlags) {
+        println!("rocket!");
+    }    
+
+    /*------------------------------------------------
+     *                  REPEATER
+     *------------------------------------------------*/
+    ui_header(ctx, media, "Repeater");
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_label(nk_string!("Press me")) {
+        println!("pressed!");
+    }    
+
+    /*------------------------------------------------
+     *                  TOGGLE
+     *------------------------------------------------*/
+    ui_header(ctx, media, "Toggle buttons");
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_image_label(if state.toggle0 { media.checked.hnd.clone() } else { media.unchecked.hnd.clone() }, nk_string!("Toggle"), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+        state.toggle0 = !state.toggle0;
+    }    
+
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_image_label(if state.toggle1 { media.checked.hnd.clone() } else { media.unchecked.hnd.clone() }, nk_string!("Toggle"), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+        state.toggle1 = !state.toggle1;
+    }    
+
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_image_label(if state.toggle2 { media.checked.hnd.clone() } else { media.unchecked.hnd.clone() }, nk_string!("Toggle"), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+        state.toggle2 = !state.toggle2;
+    }    
+
+    /*------------------------------------------------
+     *                  RADIO
+     *------------------------------------------------*/
+    ui_header(ctx, media, "Radio buttons");
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_symbol_label( if state.option == 0 { NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { NkSymbolType::NK_SYMBOL_CIRCLE_SOLID }, nk_string!("Select 1"), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+        state.option = 0;
+    }    
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_symbol_label( if state.option == 1 { NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { NkSymbolType::NK_SYMBOL_CIRCLE_SOLID }, nk_string!("Select 2"), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+        state.option = 1;
+    }    
+    ui_widget(ctx, media, 35f32);
+    if ctx.button_symbol_label( if state.option == 2 { NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { NkSymbolType::NK_SYMBOL_CIRCLE_SOLID }, nk_string!("Select 3"), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+        state.option = 2;
+    }    
+
+    /*------------------------------------------------
+     *                  CONTEXTUAL
+     *------------------------------------------------*/
+    ctx.style_set_font(&media.font_18.handle());
+    let bounds = ctx.window_get_bounds();
+    if ctx.contextual_begin(&mut menu, NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags, NkVec2{ x:150f32, y:300f32 }, bounds) {
+        ctx.layout_row_dynamic(30f32, 1);
+        if ctx.contextual_item_image_label(media.copy.hnd.clone(), nk_string!("Clone"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+            println!("pressed clone!");
+        }    
+        if ctx.contextual_item_image_label(media.del.hnd.clone(), nk_string!("Delete"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+            println!("pressed delete!");
+        }    
+        if ctx.contextual_item_image_label(media.convert.hnd.clone(), nk_string!("Convert"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+            println!("pressed convert!");
+        }    
+        if ctx.contextual_item_image_label(media.edit.hnd.clone(), nk_string!("Edit"), NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+            println!("pressed edit!");
+        }    
+        ctx.contextual_end();
+    }
+    ctx.style_set_font(&media.font_14.handle());
+    ctx.end();
+}
+
 fn basic_demo<R: gfx::Resources>(ctx: &mut NkContext, media: &mut Media<R>, state: &mut BasicState) {
 	let mut layout = NkPanel::default();
     let mut combo = NkPanel::default();
@@ -449,7 +633,8 @@ fn basic_demo<R: gfx::Resources>(ctx: &mut NkContext, media: &mut Media<R>, stat
      *------------------------------------------------*/
     ui_header(ctx, media, "Combo box");
     ui_widget(ctx, media, 40f32);
-    if ctx.combo_begin_label(&mut combo, NkString::from(state.items[state.selected_item]), 200) {
+    let widget_width = ctx.widget_width();
+    if ctx.combo_begin_label(&mut combo, NkString::from(state.items[state.selected_item]), NkVec2{ x:widget_width, y:200f32}) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
             if ctx.combo_item_label(NkString::from(state.items[i]), NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
@@ -460,7 +645,8 @@ fn basic_demo<R: gfx::Resources>(ctx: &mut NkContext, media: &mut Media<R>, stat
     }
 
     ui_widget(ctx, media, 40f32);
-    if ctx.combo_begin_image_label(&mut combo, NkString::from(state.items[state.selected_icon]), media.images[state.selected_icon].hnd.clone(), 200) {
+    let widget_width = ctx.widget_width();
+    if ctx.combo_begin_image_label(&mut combo, NkString::from(state.items[state.selected_icon]), media.images[state.selected_icon].hnd.clone(), NkVec2{ x:widget_width, y:200f32}) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
             if ctx.combo_item_image_label(media.images[i].hnd.clone(), NkString::from(state.items[i]), NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
@@ -617,7 +803,7 @@ fn ui_piemenu<R: gfx::Resources>(ctx: &mut NkContext, pos: NkVec2, radius: f32, 
     ret
 }
 
-fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(dev: &mut Device<R>, ctx: &mut NkContext, media: &mut Media<R>, encoder: &mut Encoder<R,B>, factory: &mut F, sampler: &gfx_core::handle::Sampler<R>, width: u32, height: u32, scale: NkVec2, aa: NkAntiAliasing) 
+fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(dev: &mut Device<R>, ctx: &mut NkContext, media: &mut Media<R>, encoder: &mut Encoder<R,B>, factory: &mut F, sampler: &gfx_core::handle::Sampler<R>, vbuf: gfx_core::handle::Buffer<R, Vertex>, slice: &mut gfx::Slice<R>, width: u32, height: u32, scale: NkVec2, aa: NkAntiAliasing) 
 		where R: gfx_core::Resources,
 		F: gfx::Factory<R> {
 	use gfx::pso::buffer::Structure;
@@ -647,83 +833,7 @@ fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(de
     config.set_global_alpha(1.0f32);
     config.set_shape_aa(aa);
     config.set_line_aa(aa);
-    
-    
-			
-	/*glEnable(GL_BLEND);
-    glBlendEquation(GL_FUNC_ADD);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_SCISSOR_TEST);
-    glActiveTexture(GL_TEXTURE0);
 
-    glUseProgram(dev->prog);
-    glUniform1i(dev->uniform_tex, 0);
-    glUniformMatrix4fv(dev->uniform_proj, 1, GL_FALSE, &ortho[0][0]);
-    {
-        const struct nk_draw_command *cmd;
-        void *vertices, *elements;
-        const nk_draw_index *offset = NULL;
-
-        glBindVertexArray(dev->vao);
-        glBindBuffer(GL_ARRAY_BUFFER, dev->vbo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dev->ebo);
-
-        glBufferData(GL_ARRAY_BUFFER, MAX_VERTEX_MEMORY, NULL, GL_STREAM_DRAW);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, MAX_ELEMENT_MEMORY, NULL, GL_STREAM_DRAW);
-
-        vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-        elements = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
-        {
-            struct nk_convert_config config;
-            static const struct nk_draw_vertex_layout_element vertex_layout[] = {
-                {NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(struct nk_glfw_vertex, position)},
-                {NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(struct nk_glfw_vertex, uv)},
-                {NK_VERTEX_COLOR, NK_FORMAT_R8G8B8A8, NK_OFFSETOF(struct nk_glfw_vertex, col)},
-                {NK_VERTEX_LAYOUT_END}
-            };
-            NK_MEMSET(&config, 0, sizeof(config));
-            config.vertex_layout = vertex_layout;
-            config.vertex_size = sizeof(struct nk_glfw_vertex);
-            config.vertex_alignment = NK_ALIGNOF(struct nk_glfw_vertex);
-            config.null = dev->null;
-            config.circle_segment_count = 22;
-            config.curve_segment_count = 22;
-            config.arc_segment_count = 22;
-            config.global_alpha = 1.0f;
-            config.shape_AA = AA;
-            config.line_AA = AA;
-
-            {struct nk_buffer vbuf, ebuf;
-            nk_buffer_init_fixed(&vbuf, vertices, MAX_VERTEX_MEMORY);
-            nk_buffer_init_fixed(&ebuf, elements, MAX_ELEMENT_MEMORY);
-            nk_convert(ctx, &dev->cmds, &vbuf, &ebuf, &config);}
-        }
-        glUnmapBuffer(GL_ARRAY_BUFFER);
-        glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
-
-        nk_draw_foreach(cmd, ctx, &dev->cmds)
-        {
-            if (!cmd->elem_count) continue;
-            glBindTexture(GL_TEXTURE_2D, (GLuint)cmd->texture.id);
-            glScissor(
-                (GLint)(cmd->clip_rect.x * scale.x),
-                (GLint)((height - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h)) * scale.y),
-                (GLint)(cmd->clip_rect.w * scale.x),
-                (GLint)(cmd->clip_rect.h * scale.y));
-            glDrawElements(GL_TRIANGLES, (GLsizei)cmd->elem_count, GL_UNSIGNED_SHORT, offset);
-            offset += cmd->elem_count;
-        }
-        nk_clear(ctx);
-    }
-
-    glUseProgram(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glDisable(GL_BLEND);
-    glDisable(GL_SCISSOR_TEST); */
 	{
 		let mut rvbuf = unsafe { ::std::slice::from_raw_parts_mut(dev.vbuf as *mut [Vertex] as *mut u8, ::std::mem::size_of::<Vertex>() * dev.vbuf.len()) }; 
 		let mut rebuf = unsafe { ::std::slice::from_raw_parts_mut(dev.ebuf as *mut [u16] as *mut u8, ::std::mem::size_of::<u16>() * dev.ebuf.len()) }; 
@@ -742,7 +852,6 @@ fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(de
 		
 		//println!("{:?}", cmd);
 		
-		let (vbuf, mut slice) = factory.create_vertex_buffer_with_slice(&dev.vbuf, &dev.ebuf[..]);
 		slice.start = offset / 2;
 		slice.end = slice.start + cmd.elem_count();
 		
@@ -750,7 +859,7 @@ fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(de
 		let ptr: ShaderResourceView<R, [f32; 4]> = if id == 0 {dev.font_tex.res.clone()} else {media.find(id).unwrap()}; 
 		
 		let data = pipe::Data {
-			vbuf: vbuf,
+			vbuf: vbuf.clone(),
 		    proj: ortho,
 		    tex: (ptr, sampler.clone()), //&mut r.res as *mut _ as *mut ::std::os::raw::c_void
 		    output: dev.col.clone(),
