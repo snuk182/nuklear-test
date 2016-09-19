@@ -20,6 +20,7 @@ use gfx::tex::{Kind, AaMode};
 use gfx::pso::{PipelineData, PipelineState};
 use gfx_core::handle::{ShaderResourceView};
 use gfx::traits::FactoryExt;
+use gfx::Device as Gd;
 
 use std::fs::*;
 use std::io::{BufRead, BufReader};
@@ -166,7 +167,7 @@ gfx_defines!{
 	    proj: gfx::Global<[[f32; 4]; 4]> = "ProjMtx",
 	    tex: gfx::TextureSampler<[f32; 4]> = "Texture",
 	    output: gfx::BlendTarget<super::ColorFormat> = ("Out_Color", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
-	    scissors: gfx::Scissor = (),
+	    //scissors: gfx::Scissor = (),
 	}
 }
 
@@ -233,7 +234,7 @@ fn main() {
 	let font_22 = atlas.add_font_with_bytes(font, 22.0).unwrap();
 	
 	let (b, fw, fh) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-	let font_tex = upload_atlas(&mut factory, &b, fw, fh);
+	let font_tex = upload_atlas(&mut factory, &b, fw as usize, fh as usize);
 	
 	let mut dev = Device {
 		cmds: NkBuffer::with_size(&mut allo, 16192),
@@ -328,48 +329,53 @@ fn main() {
 	let mut mx = 0;
     let mut my = 0;	
     
-	let (vbuf, mut slice) = factory.create_vertex_buffer_with_slice(&dev.vbuf, &dev.ebuf[..]);
+	let vbuf = factory.create_buffer_dynamic::<Vertex>(MAX_VERTEX_MEMORY, ::gfx::BufferRole::Vertex, ::gfx::Bind::empty()).unwrap();
+	let ebuf = factory.create_buffer_dynamic::<u16>(MAX_ELEMENT_MEMORY, ::gfx::BufferRole::Index, ::gfx::Bind::empty()).unwrap();
+	
+	let mut tmp = [0u16; MAX_ELEMENT_MEMORY];
 		
-	for event in window.wait_events() {
+	'main: loop {
         
-        println!("{:?}", event);
+        //println!("{:?}", event);
         
-        let (w,h) = window.get_inner_size_pixels().unwrap();
-        let scale = NkVec2 {x:1f32, y:1f32};
+        let (fw,fh) = window.get_inner_size_pixels().unwrap();
+        let scale = NkVec2 {x: fw as f32 / w as f32, y: fh as f32 / h as f32};
         
         ctx.input_begin();
-        match event {
-            glutin::Event::Closed => break,
-            glutin::Event::KeyboardInput(s, _, k) => {
-            	if let Some(k) = k {
-            		let key = match k {
-            			glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-            			glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-            			glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-            			glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-            			_ => NkKey::NK_KEY_NONE,
-            		};
-            		
-            		ctx.input_key(key, s == glutin::ElementState::Pressed);
-            	}
-            	
-            }
-            glutin::Event::MouseMoved(x,y) => {
-            	mx = x;
-            	my = y;
-	            ctx.input_motion(x, y);
-            }
-            glutin::Event::MouseInput(s, b) => {
-            	let button = match b {
-            		glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-            		glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-            		glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-            		_ => NkButton::NK_BUTTON_MAX,
-            	};
-            	
-            	ctx.input_button(button, mx, my, s == glutin::ElementState::Pressed)
-            }
-            _ => ()
+        for event in window.poll_events() {
+        	match event {
+	            glutin::Event::Closed => break 'main,
+	            glutin::Event::KeyboardInput(s, _, k) => {
+	            	if let Some(k) = k {
+	            		let key = match k {
+	            			glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
+	            			glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
+	            			glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
+	            			glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
+	            			_ => NkKey::NK_KEY_NONE,
+	            		};
+	            		
+	            		ctx.input_key(key, s == glutin::ElementState::Pressed);
+	            	}
+	            	
+	            }
+	            glutin::Event::MouseMoved(x,y) => {
+	            	mx = x;
+	            	my = y;
+		            ctx.input_motion(x, y);
+	            }
+	            glutin::Event::MouseInput(s, b) => {
+	            	let button = match b {
+	            		glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
+	            		glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
+	            		glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
+	            		_ => NkButton::NK_BUTTON_MAX,
+	            	};
+	            	
+	            	ctx.input_button(button, mx, my, s == glutin::ElementState::Pressed)
+	            }
+	            _ => ()
+	        }
         }
         ctx.input_end();
         
@@ -377,8 +383,13 @@ fn main() {
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
         
-        device_draw(&mut dev, &mut ctx, &mut media, &mut encoder, &mut factory, &sampler, vbuf.clone(), &mut slice, w, h, scale, NkAntiAliasing::NK_ANTI_ALIASING_ON);
-        let _ = window.swap_buffers();
+        encoder.clear(&dev.col, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
+        device_draw(&mut dev, &mut ctx, &mut media, &mut encoder, &mut factory, &sampler, &vbuf, &ebuf, &mut tmp, w, h, scale, NkAntiAliasing::NK_ANTI_ALIASING_ON);
+        encoder.flush(&mut device);
+        window.swap_buffers().unwrap();
+		device.cleanup();
+		
+		::std::thread::sleep(::std::time::Duration::from_millis(10));
 
         ctx.clear();
 	}
@@ -803,10 +814,11 @@ fn ui_piemenu<R: gfx::Resources>(ctx: &mut NkContext, pos: NkVec2, radius: f32, 
     ret
 }
 
-fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(dev: &mut Device<R>, ctx: &mut NkContext, media: &mut Media<R>, encoder: &mut Encoder<R,B>, factory: &mut F, sampler: &gfx_core::handle::Sampler<R>, vbuf: gfx_core::handle::Buffer<R, Vertex>, slice: &mut gfx::Slice<R>, width: u32, height: u32, scale: NkVec2, aa: NkAntiAliasing) 
+fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(dev: &mut Device<R>, ctx: &mut NkContext, media: &mut Media<R>, encoder: &mut Encoder<R,B>, factory: &mut F, sampler: &gfx_core::handle::Sampler<R>, vbuf: &gfx_core::handle::Buffer<R, Vertex>, ebuf: &gfx_core::handle::Buffer<R, u16>, tmp: &mut [u16],width: u32, height: u32, scale: NkVec2, aa: NkAntiAliasing) 
 		where R: gfx_core::Resources,
 		F: gfx::Factory<R> {
 	use gfx::pso::buffer::Structure;
+	use gfx::IntoIndexBuffer;
 	
 	let ortho = [[2.0f32 / width as f32, 0.0f32, 				 0.0f32, 0.0f32],
 				[0.0f32,				-2.0f32 / height as f32, 0.0f32, 0.0f32],
@@ -835,14 +847,28 @@ fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(de
     config.set_line_aa(aa);
 
 	{
-		let mut rvbuf = unsafe { ::std::slice::from_raw_parts_mut(dev.vbuf as *mut [Vertex] as *mut u8, ::std::mem::size_of::<Vertex>() * dev.vbuf.len()) }; 
-		let mut rebuf = unsafe { ::std::slice::from_raw_parts_mut(dev.ebuf as *mut [u16] as *mut u8, ::std::mem::size_of::<u16>() * dev.ebuf.len()) }; 
+		let mut rwv = factory.map_buffer_rw(vbuf);
+		let mut rvbuf = unsafe { ::std::slice::from_raw_parts_mut(&mut *rwv as *mut [Vertex] as *mut u8, ::std::mem::size_of::<Vertex>() * dev.vbuf.len()) }; 
 		let mut vbuf = NkBuffer::with_fixed(&mut rvbuf);
+		
+		let mut rebuf = unsafe { ::std::slice::from_raw_parts_mut(tmp as *mut [u16] as *mut u8, ::std::mem::size_of::<u16>() * dev.ebuf.len()) }; 
 		let mut ebuf = NkBuffer::with_fixed(&mut rebuf);
+		
 		ctx.convert(&mut dev.cmds, &mut vbuf, &mut ebuf, &config);	
 	}
 	
-	let mut offset = 0;
+	{
+		let mut rwe = factory.map_buffer_rw(ebuf);
+		(&mut *rwe).clone_from_slice(tmp);
+	}
+	
+	let mut slice = ::gfx::Slice {
+	    start: 0,
+	    end: 0,
+	    base_vertex: 0,
+	    instances: None,
+	    buffer: ebuf.clone().into_index_buffer(factory),
+	};
 	
 	for cmd in ctx.draw_command_iterator(&mut dev.cmds) {
 		
@@ -852,8 +878,8 @@ fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(de
 		
 		//println!("{:?}", cmd);
 		
-		slice.start = offset / 2;
-		slice.end = slice.start + cmd.elem_count();
+		slice.start = slice.end;
+		slice.end += cmd.elem_count();
 		
 		let id = cmd.texture().id().unwrap();
 		let ptr: ShaderResourceView<R, [f32; 4]> = if id == 0 {dev.font_tex.res.clone()} else {media.find(id).unwrap()}; 
@@ -863,16 +889,14 @@ fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(de
 		    proj: ortho,
 		    tex: (ptr, sampler.clone()), //&mut r.res as *mut _ as *mut ::std::os::raw::c_void
 		    output: dev.col.clone(),
-		    scissors: gfx::Rect{
+		    /*scissors: gfx::Rect{
 		    	x: (cmd.clip_rect().x * scale.x) as u16,
 		    	y: ((height as f32 - cmd.clip_rect().y + cmd.clip_rect().h) * scale.y) as u16,
 		    	w: (cmd.clip_rect().w * scale.x) as u16,
 		    	h: (cmd.clip_rect().h * scale.y) as u16,
-		    },
+		    },*/
 		};
 		
 		encoder.draw(&slice, &dev.pso, &data);
-		
-		offset += cmd.elem_count();
 	}	
 }
