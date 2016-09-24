@@ -1,11 +1,11 @@
 [package]
-name = "nr-test"
+name = "nuklear-sample-extended"
 version = "0.1.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
 nuklear-rust = {version = "*", path = "../nuklear-rust"}
-gfx_core = "*"
+nuklear-backend-gfx = {version = "*", path = "../nuklear-backend-gfx"}
 gfx_device_gl = "*"
 gfx_window_glutin = "*"
 gfx = "*"
