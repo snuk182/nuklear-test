@@ -146,8 +146,6 @@ fn main() {
 	
 	let mut ctx = NkContext::new(&mut allo, &font_14.handle()); 
 	
-	let mut id = 0;
-	
 	let mut media = Media {
 		font_14: font_14,
 	    font_18: font_18, 
@@ -334,7 +332,7 @@ fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
 }
 
 fn free_type(_: NkTextEdit, c: char) -> bool {
-	(c > '\u{0400}' && c < '\u{052F}') || (c > '\u{2DE0}' && c < '\u{2DFF}') || (c > '\u{A640}' && c < '\u{A69F}')
+	(c > '\u{0080}')
 }
 
 fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
