@@ -15,12 +15,8 @@ use nuklear_backend_gfx::Drawer;
 use glutin::GlRequest;
 use gfx::Device as Gd;
 
-use image::png::PNGDecoder;
-use image::{ColorType, ImageDecoder, ImageFormat};
-
 use std::fs::*;
-use std::io::{BufRead, BufReader};
-use std::error::Error;
+use std::io::BufReader;
 
 pub type ColorFormat = gfx::format::Rgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
@@ -117,7 +113,7 @@ fn main() {
 	cfg.set_oversample_h(3);
 	cfg.set_oversample_v(2);
 	cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
-	cfg.set_ttf(include_bytes!("../res/fonts/Gecko_PersonalUseOnly.ttf"));
+	cfg.set_ttf(include_bytes!("../res/fonts/FFF_Tusj.ttf"));
 	cfg.set_ttf_data_owned_by_atlas(true);
 	
 	let mut allo = NkAllocator::new_vec();
@@ -126,16 +122,14 @@ fn main() {
 	
 	let mut atlas = NkFontAtlas::new(&mut allo);
 	
-	//let font = include_bytes!("../res/fonts/Gecko_PersonalUseOnly.ttf");
-	
 	cfg.set_size(14f32);
-	let mut font_14 = atlas.add_font_with_config(&cfg).unwrap(); //atlas.add_font_with_bytes(font, 14.0).unwrap();	
+	let mut font_14 = atlas.add_font_with_config(&cfg).unwrap(); 
 	cfg.set_size(18f32);
-	let font_18 = atlas.add_font_with_config(&cfg).unwrap();//atlas.add_font_with_bytes(font, 18.0).unwrap();
+	let font_18 = atlas.add_font_with_config(&cfg).unwrap();
 	cfg.set_size(20f32);
-	let font_20 = atlas.add_font_with_config(&cfg).unwrap();//atlas.add_font_with_bytes(font, 20.0).unwrap();
+	let font_20 = atlas.add_font_with_config(&cfg).unwrap();
 	cfg.set_size(22f32);
-	let font_22 = atlas.add_font_with_config(&cfg).unwrap();//atlas.add_font_with_bytes(font, 22.0).unwrap();
+	let font_22 = atlas.add_font_with_config(&cfg).unwrap();
 	
 	let (b,w,h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
 	let font_tex = drawer.add_texture(&mut factory, b.as_slice(), w, h);
@@ -296,7 +290,6 @@ fn main() {
         basic_demo(&mut ctx, &mut media, &mut basic_state);
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
-        my_demo(&mut ctx, &mut media);
         
         encoder.clear(&main_color, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
         drawer.draw(&mut ctx, &mut config, &mut encoder, &mut factory, &mut tmp, fw, fh, scale);
@@ -485,10 +478,6 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     }
     ctx.style_set_font(&media.font_14.handle());
     ctx.end();
-}
-
-fn my_demo(ctx: &mut NkContext, media: &mut Media) {
-	let mut layout = NkPanel::default();
 }
 
 fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
