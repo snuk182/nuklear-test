@@ -113,7 +113,7 @@ fn main() {
 	cfg.set_oversample_h(3);
 	cfg.set_oversample_v(2);
 	cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
-	cfg.set_ttf(include_bytes!("../res/fonts/FFF_Tusj.ttf"));
+	cfg.set_ttf(include_bytes!("../res/fonts/Roboto-Regular.ttf"));
 	cfg.set_ttf_data_owned_by_atlas(true);
 	
 	let mut allo = NkAllocator::new_vec();
@@ -131,8 +131,10 @@ fn main() {
 	cfg.set_size(22f32);
 	let font_22 = atlas.add_font_with_config(&cfg).unwrap();
 	
-	let (b,w,h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-	let font_tex = drawer.add_texture(&mut factory, b.as_slice(), w, h);
+	let font_tex = {
+		let (b,w,h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
+		drawer.add_texture(&mut factory, b, w, h)
+	};
 	
 	let mut null = NkDrawNullTexture::default();
 	
