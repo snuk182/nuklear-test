@@ -3,7 +3,6 @@ extern crate nuklear_rust;
 
 #[macro_use]
 extern crate gfx;
-extern crate gfx_core;
 extern crate gfx_device_gl;
 extern crate gfx_window_glutin;
 extern crate glutin;
@@ -18,7 +17,7 @@ use glutin::GlRequest;
 use gfx::{Factory, Resources, Encoder};
 use gfx::tex::{Kind, AaMode};
 use gfx::pso::{PipelineData, PipelineState};
-use gfx_core::handle::{ShaderResourceView};
+use gfx::handle::{ShaderResourceView};
 use gfx::traits::FactoryExt;
 use gfx::Device as Gd;
 
@@ -70,8 +69,8 @@ struct Device<R: Resources> {
     null: NkDrawNullTexture,
     pso: gfx::PipelineState<R, pipe::Meta>,
     			
-	col: gfx_core::handle::RenderTargetView<R, (gfx_core::format::R8_G8_B8_A8, gfx_core::format::Unorm)>,
-	dep: gfx_core::handle::DepthStencilView<R, (gfx_core::format::D24_S8, gfx_core::format::Unorm)>,
+	col: gfx::handle::RenderTargetView<R, (gfx::format::R8_G8_B8_A8, gfx::format::Unorm)>,
+	dep: gfx::handle::DepthStencilView<R, (gfx::format::D24_S8, gfx::format::Unorm)>,
 	font_tex: ResourceHandle<NkHandle, R>,
 }
 
@@ -226,16 +225,18 @@ fn main() {
 	let font_20 = atlas.add_font_with_bytes(font, 20.0).unwrap();
 	let font_22 = atlas.add_font_with_bytes(font, 22.0).unwrap();
 	
-	let (b, fw, fh) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-	let font_tex = upload_atlas(&mut factory, &b, fw as usize, fh as usize);
-	
-	let mut dev = Device {
-		cmds: NkBuffer::with_size(&mut allo, 65535),
-		null: NkDrawNullTexture::default(),
-		pso: factory.create_pipeline_simple(VS,FS, pipe::new()).unwrap(),
-		col: main_color,
-		dep: main_depth,
-		font_tex: font_tex,
+	let mut dev = {
+		let (b, fw, fh) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
+		let font_tex = upload_atlas(&mut factory, b, fw as usize, fh as usize);
+		
+		Device {
+			cmds: NkBuffer::with_size(&mut allo, 65535),
+			null: NkDrawNullTexture::default(),
+			pso: factory.create_pipeline_simple(VS,FS, pipe::new()).unwrap(),
+			col: main_color,
+			dep: main_depth,
+			font_tex: font_tex,
+		}
 	};
 	
 	atlas.end(dev.font_tex.hnd, Some(&mut dev.null));
@@ -334,7 +335,7 @@ fn main() {
         	match event {
 	            glutin::Event::Closed => break 'main,
 	            glutin::Event::ReceivedCharacter(c) => {
-		            ctx.input_char(c);
+		            ctx.input_unicode(c);
 	            },
 	            glutin::Event::KeyboardInput(s, _, k) => {
 	            	if let Some(k) = k {
@@ -402,9 +403,9 @@ fn main() {
 	}
 }
 
-fn upload_atlas<F, R: gfx::Resources>(factory: &mut F, image: &Vec<u8>, width: usize, height: usize) -> ResourceHandle<NkHandle, R> where F: gfx::Factory<R> {
+fn upload_atlas<F, R: gfx::Resources>(factory: &mut F, image: &[u8], width: usize, height: usize) -> ResourceHandle<NkHandle, R> where F: gfx::Factory<R> {
 	
-	let (_, view) = factory.create_texture_const_u8::<ColorFormat>(Kind::D2(width as u16, height as u16, AaMode::Single), &[image.as_slice()]).unwrap();
+	let (_, view) = factory.create_texture_const_u8::<ColorFormat>(Kind::D2(width as u16, height as u16, AaMode::Single), &[image]).unwrap();
     /*glGenTextures(1, &dev->font_tex);
     glBindTexture(GL_TEXTURE_2D, dev->font_tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -826,8 +827,8 @@ fn ui_piemenu<R: gfx::Resources>(ctx: &mut NkContext, pos: NkVec2, radius: f32, 
     ret
 }
 
-fn device_draw<F, R: gfx_core::Resources,B: gfx_core::draw::CommandBuffer<R>>(dev: &mut Device<R>, ctx: &mut NkContext, media: &mut Media<R>, encoder: &mut Encoder<R,B>, factory: &mut F, sampler: &gfx_core::handle::Sampler<R>, vbuf: &gfx_core::handle::Buffer<R, Vertex>, ebuf: &gfx_core::handle::Buffer<R, u16>, tmp: &mut [u16],width: u32, height: u32, scale: NkVec2, aa: NkAntiAliasing) 
-		where R: gfx_core::Resources,
+fn device_draw<F, R: gfx::Resources,B: gfx::CommandBuffer<R>>(dev: &mut Device<R>, ctx: &mut NkContext, media: &mut Media<R>, encoder: &mut Encoder<R,B>, factory: &mut F, sampler: &gfx::handle::Sampler<R>, vbuf: &gfx::handle::Buffer<R, Vertex>, ebuf: &gfx::handle::Buffer<R, u16>, tmp: &mut [u16],width: u32, height: u32, scale: NkVec2, aa: NkAntiAliasing) 
+		where R: gfx::Resources,
 		F: gfx::Factory<R> {
 	use gfx::pso::buffer::Structure;
 	use gfx::IntoIndexBuffer;
