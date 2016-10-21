@@ -4,8 +4,8 @@ version = "0.1.3"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = "*"
-nuklear-backend-gfx = "*"
+nuklear-rust = {version = "*", features = ["rust_allocator"]}
+nuklear-backend-gfx = { version = "*", path = "../nuklear-backend-gfx" }
 gfx_device_gl = "*"
 gfx_window_glutin = "*"
 gfx = "*"
