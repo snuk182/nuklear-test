@@ -9,7 +9,7 @@ nuklear-backend-gfx = { version = "*" }
 gfx_device_gl = "*"
 gfx_window_glutin = "*"
 gfx = "*"
-glutin = "*"
+glutin = "~0.6"
 image = "*"
 
 [[bin]]
