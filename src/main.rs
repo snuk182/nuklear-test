@@ -6,20 +6,19 @@ extern crate nuklear_backend_gfx;
 extern crate image;
 
 extern crate gfx;
-extern crate gfx_window_glutin;
-extern crate glutin;
+extern crate gfx_window_dxgi;
+
+extern crate winit;
 
 use nuklear_rust::*;
-use nuklear_backend_gfx::Drawer;
+use nuklear_backend_gfx::{Drawer, GfxBackend};
 
-use glutin::GlRequest;
 use gfx::Device as Gd;
 
 use std::fs::*;
 use std::io::BufReader;
 
-pub type ColorFormat = gfx::format::Rgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
+pub type RenderFormat = gfx::format::Rgba8;
 
 const MAX_VERTEX_MEMORY: usize = 512 * 1024;
 const MAX_ELEMENT_MEMORY: usize = 128 * 1024;
@@ -96,17 +95,9 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
 }
 
 fn main() {
-    let gl_version = GlRequest::GlThenGles {
-        opengles_version: (2, 0),
-        opengl_version: (3, 3),
-    };
-
-    let builder = glutin::WindowBuilder::new()
-        .with_depth_buffer(24)
-        .with_dimensions(1280, 800)
-        .with_gl(gl_version);
-
-    let (window, mut device, mut factory, mut main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
+	let fw = 1280;
+	let fh = 800;
+    let (window, mut device, mut factory, mut render_target) = gfx_window_dxgi::init::<RenderFormat>("dx11 window", fw, fh).unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
 
@@ -121,11 +112,14 @@ fn main() {
     let mut allo = NkAllocator::new_vec();
 
     let mut drawer = Drawer::new(&mut factory,
-                                 &main_color,
+                                 &render_target,
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY));
+                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
+                                 GfxBackend::DX11Hlsl
+    
+    );
 
     let mut atlas = NkFontAtlas::new(&mut allo);
 
@@ -239,48 +233,48 @@ fn main() {
             // println!("{:?}", event);
 
             match event {
-                glutin::Event::Closed => break 'main,
-                glutin::Event::ReceivedCharacter(c) => {
+                winit::Event::Closed => break 'main,
+                winit::Event::ReceivedCharacter(c) => {
                     ctx.input_unicode(c);
                 }
-                glutin::Event::KeyboardInput(s, _, k) => {
+                winit::Event::KeyboardInput(s, _, k) => {
                     if let Some(k) = k {
                         let key = match k {
-                            glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-                            glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-                            glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-                            glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-                            glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-                            glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
+                            winit::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
+                            winit::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
+                            winit::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
+                            winit::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
+                            winit::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
+                            winit::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
                             _ => NkKey::NK_KEY_NONE,
                         };
 
-                        ctx.input_key(key, s == glutin::ElementState::Pressed);
+                        ctx.input_key(key, s == winit::ElementState::Pressed);
                     }
                 }
-                glutin::Event::MouseMoved(x, y) => {
+                winit::Event::MouseMoved(x, y) => {
                     mx = x;
                     my = y;
                     ctx.input_motion(x, y);
                 }
-                glutin::Event::MouseInput(s, b) => {
+                winit::Event::MouseInput(s, b) => {
                     let button = match b {
-                        glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-                        glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-                        glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
+                        winit::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
+                        winit::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
+                        winit::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
                         _ => NkButton::NK_BUTTON_MAX,
                     };
 
-                    ctx.input_button(button, mx, my, s == glutin::ElementState::Pressed)
+                    ctx.input_button(button, mx, my, s == winit::ElementState::Pressed)
                 }
-                glutin::Event::MouseWheel(d, _) => {
-                    if let glutin::MouseScrollDelta::LineDelta(_, y) = d {
+                winit::Event::MouseWheel(d, _) => {
+                    if let winit::MouseScrollDelta::LineDelta(_, y) = d {
                         ctx.input_scroll(y * 22f32);
                     }
                 }
-                glutin::Event::Resized(_, _) => {
-                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-                    drawer.col = main_color.clone();
+                winit::Event::Resized(_, _) => {
+                    //gfx_window_winit::update_views(&window, &mut main_color, &mut main_depth);
+                    drawer.col = render_target.clone();
                 }
                 _ => (),
             }
@@ -288,28 +282,28 @@ fn main() {
         ctx.input_end();
 
         // println!("{:?}", event);
-        let (w, h) = window.get_inner_size_pixels().unwrap();
-        let (fw, fh) = window.get_inner_size().unwrap();
+        //let (w, h) = window.get_inner_size_pixels().unwrap();
+        //let (fw, fh) = window.get_inner_size().unwrap();
         let scale = NkVec2 {
-            x: fw as f32 / w as f32,
-            y: fh as f32 / h as f32,
+            x: 1.0,
+            y: 1.0,
         };
 
         basic_demo(&mut ctx, &mut media, &mut basic_state);
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
-        encoder.clear(&main_color, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
+        encoder.clear(&render_target, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
         drawer.draw(&mut ctx,
                     &mut config,
                     &mut encoder,
                     &mut factory,
                     &mut tmp,
-                    fw,
-                    fh,
+                    fw as u32,
+                    fh as u32,
                     scale);
         encoder.flush(&mut device);
-        window.swap_buffers().unwrap();
+        window.swap_buffers(0);
         device.cleanup();
 
         ::std::thread::sleep(::std::time::Duration::from_millis(20));
