@@ -10,7 +10,7 @@ extern crate gfx_window_glutin;
 extern crate glutin;
 
 use nuklear_rust::*;
-use nuklear_backend_gfx::Drawer;
+use nuklear_backend_gfx::{Drawer, GfxBackend};
 
 use glutin::GlRequest;
 use gfx::Device as Gd;
@@ -125,7 +125,9 @@ fn main() {
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY));
+                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
+								 GfxBackend::OpenGlsl150
+    );
 
     let mut atlas = NkFontAtlas::new(&mut allo);
 
