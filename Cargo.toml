@@ -6,9 +6,9 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 [dependencies]
 nuklear-rust = {version = "*", features = ["rust_allocator"]}
 nuklear-backend-gfx = { version = "*", path = "../nuklear-backend-gfx" }
-gfx_device_gl = "*"
-gfx_window_glutin = "*"
-gfx = "*"
+gfx_device_gl = { version = "*", path = "../gfx/src/backend/gl" }
+gfx_window_glutin = { version = "*", path = "../gfx/src/window/glutin" }
+gfx = { version = "*", path = "../gfx/src/render" }
 glutin = "*"
 image = "*"
 
