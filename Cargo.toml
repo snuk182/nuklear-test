@@ -6,10 +6,10 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 [dependencies]
 nuklear-rust = {version = "*"}
 nuklear-backend-gfx = { version = "*", path = "../nuklear-backend-gfx" }
-gfx_device_dx11 = "*"
-gfx_window_dxgi = "*"
+gfx_device_dx11 = { version = "*", path = "../gfx/src/backend/dx11" }
+gfx_window_dxgi = { version = "*", path = "../gfx/src/window/dxgi" }
 winit = "*"
-gfx = "*"
+gfx = { version = "*", path = "../gfx/src/render" }
 image = "*"
 
 [[bin]]

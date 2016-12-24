@@ -215,8 +215,6 @@ fn main() {
     let mut mx = 0;
     let mut my = 0;
 
-    let mut tmp = [0u16; MAX_ELEMENT_MEMORY];
-
     let mut config = NkConvertConfig::default();
     config.set_null(null.clone());
     config.set_circle_segment_count(22);
@@ -298,7 +296,6 @@ fn main() {
                     &mut config,
                     &mut encoder,
                     &mut factory,
-                    &mut tmp,
                     fw as u32,
                     fh as u32,
                     scale);
