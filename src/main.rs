@@ -334,7 +334,7 @@ fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
 }
 
 fn free_type(_: NkTextEdit, c: char) -> bool {
-    (c > '\u{0080}')
+    (c > '\u{0030}')
 }
 
 fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
