@@ -10,7 +10,7 @@ extern crate gfx_window_glutin;
 extern crate glutin;
 
 use nuklear_rust::*;
-use nuklear_backend_gfx::Drawer;
+use nuklear_backend_gfx::{Drawer, GfxBackend};
 
 use glutin::GlRequest;
 use gfx::Device as Gd;
@@ -125,7 +125,9 @@ fn main() {
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY));
+                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
+								 GfxBackend::OpenGlsl150
+    );
 
     let mut atlas = NkFontAtlas::new(&mut allo);
 
@@ -221,8 +223,6 @@ fn main() {
     let mut mx = 0;
     let mut my = 0;
 
-    let mut tmp = [0u16; MAX_ELEMENT_MEMORY];
-
     let mut config = NkConvertConfig::default();
     config.set_null(null.clone());
     config.set_circle_segment_count(22);
@@ -304,7 +304,6 @@ fn main() {
                     &mut config,
                     &mut encoder,
                     &mut factory,
-                    &mut tmp,
                     fw,
                     fh,
                     scale);
