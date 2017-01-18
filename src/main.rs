@@ -97,7 +97,7 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
 fn main() {
 	let fw = 1280;
 	let fh = 800;
-    let (window, mut device, mut factory, mut render_target) = gfx_window_dxgi::init::<RenderFormat>("dx11 window", fw, fh).unwrap();
+    let (window, mut device, mut factory, mut render_target) = gfx_window_dxgi::init::<RenderFormat>(winit::WindowBuilder::new().with_title("dx11 window")).unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
 
@@ -118,7 +118,6 @@ fn main() {
                                  MAX_ELEMENT_MEMORY,
                                  NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
                                  GfxBackend::DX11Hlsl
-    
     );
 
     let mut atlas = NkFontAtlas::new(&mut allo);
