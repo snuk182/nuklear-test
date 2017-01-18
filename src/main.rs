@@ -97,10 +97,12 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
 fn main() {
 	let fw = 1280;
 	let fh = 800;
-    let (window, mut device, mut factory, mut render_target) = gfx_window_dxgi::init::<RenderFormat>(winit::WindowBuilder::new().with_title("dx11 window")).unwrap();
+    let (window, mut device, mut factory, mut render_target) = gfx_window_dxgi::init::<RenderFormat>(
+    	winit::WindowBuilder::new()
+    	    .with_dimensions(fw, fh)
+    	    .with_title("dx11 window"))
+    .unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
-
-
 
     let mut cfg = NkFontConfig::new(0.0);
     cfg.set_oversample_h(3);
