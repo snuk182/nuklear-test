@@ -1,28 +1,24 @@
 #[macro_use]
 extern crate nuklear_rust;
-extern crate nuklear_backend_gfx;
+extern crate nuklear_backend_glium;
 
 #[macro_use]
 extern crate image;
 
-extern crate gfx;
-extern crate gfx_window_glutin;
+extern crate glium;
 extern crate glutin;
 
 use nuklear_rust::*;
-use nuklear_backend_gfx::{Drawer, GfxBackend};
+use nuklear_backend_glium::Drawer;
 
 use glutin::GlRequest;
-use gfx::Device as Gd;
 
 use std::fs::*;
 use std::io::BufReader;
+use glium::Display;
 
-pub type ColorFormat = gfx::format::Rgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
-
-const MAX_VERTEX_MEMORY: usize = 512 * 1024;
-const MAX_ELEMENT_MEMORY: usize = 128 * 1024;
+const MAX_VERTEX_MEMORY: usize = 8 * 1024;
+const MAX_ELEMENT_MEMORY: usize = 64 * 1024;
 const MAX_COMMANDS_MEMORY: usize = 64 * 1024;
 
 struct BasicState {
@@ -81,35 +77,32 @@ struct Media {
     menu: [NkImage; 6],
 }
 
-fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> NkImage
-    where F: gfx::Factory<R>
-{
+fn icon_load(display: &mut Display, drawer: &mut Drawer, filename: &str) -> NkImage {
 
     let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
 
     let (w, h) = img.dimensions();
     let data = img.into_vec();
 
-    let mut hnd = drawer.add_texture(factory, data.as_slice(), w, h);
+    let mut hnd = drawer.add_texture(display, data.as_slice(), w, h);
 
     NkImage::with_id(hnd.id().unwrap())
 }
 
 fn main() {
+	use glium::DisplayBuild;
+	
     let gl_version = GlRequest::GlThenGles {
         opengles_version: (2, 0),
         opengl_version: (3, 3),
     };
 
-    let builder = glutin::WindowBuilder::new()
+    let mut display = glium::glutin::WindowBuilder::new()
         .with_depth_buffer(24)
         .with_dimensions(1280, 800)
-        .with_gl(gl_version);
-
-    let (window, mut device, mut factory, mut main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
-    let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
-
-
+        .with_gl(gl_version)
+        .build_glium()
+        .unwrap();
 
     let mut cfg = NkFontConfig::new(0.0);
     cfg.set_oversample_h(3);
@@ -120,14 +113,11 @@ fn main() {
 
     let mut allo = NkAllocator::new_vec();
 
-    let mut drawer = Drawer::new(&mut factory,
-                                 &main_color,
+    let mut drawer = Drawer::new(&mut display,
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
-								 GfxBackend::OpenGlsl150
-    );
+                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY));
 
     let mut atlas = NkFontAtlas::new(&mut allo);
 
@@ -142,7 +132,7 @@ fn main() {
 
     let font_tex = {
         let (b, w, h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-        drawer.add_texture(&mut factory, b, w, h)
+        drawer.add_texture(&mut display, b, w, h)
     };
 
     let mut null = NkDrawNullTexture::default();
@@ -159,37 +149,37 @@ fn main() {
 
         font_tex: font_tex,
 
-        unchecked: icon_load(&mut factory, &mut drawer, "res/icon/unchecked.png"),
-        checked: icon_load(&mut factory, &mut drawer, "res/icon/checked.png"),
-        rocket: icon_load(&mut factory, &mut drawer, "res/icon/rocket.png"),
-        cloud: icon_load(&mut factory, &mut drawer, "res/icon/cloud.png"),
-        pen: icon_load(&mut factory, &mut drawer, "res/icon/pen.png"),
-        play: icon_load(&mut factory, &mut drawer, "res/icon/play.png"),
-        pause: icon_load(&mut factory, &mut drawer, "res/icon/pause.png"),
-        stop: icon_load(&mut factory, &mut drawer, "res/icon/stop.png"),
-        prev: icon_load(&mut factory, &mut drawer, "res/icon/prev.png"),
-        next: icon_load(&mut factory, &mut drawer, "res/icon/next.png"),
-        tools: icon_load(&mut factory, &mut drawer, "res/icon/tools.png"),
-        dir: icon_load(&mut factory, &mut drawer, "res/icon/directory.png"),
-        copy: icon_load(&mut factory, &mut drawer, "res/icon/copy.png"),
-        convert: icon_load(&mut factory, &mut drawer, "res/icon/export.png"),
-        del: icon_load(&mut factory, &mut drawer, "res/icon/delete.png"),
-        edit: icon_load(&mut factory, &mut drawer, "res/icon/edit.png"),
-        images: [icon_load(&mut factory, &mut drawer, "res/images/image1.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image2.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image3.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image4.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image5.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image6.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image7.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image8.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image9.png")],
-        menu: [icon_load(&mut factory, &mut drawer, "res/icon/home.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/phone.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/plane.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/wifi.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/settings.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/volume.png")],
+        unchecked: icon_load(&mut display, &mut drawer, "res/icon/unchecked.png"),
+        checked: icon_load(&mut display, &mut drawer, "res/icon/checked.png"),
+        rocket: icon_load(&mut display, &mut drawer, "res/icon/rocket.png"),
+        cloud: icon_load(&mut display, &mut drawer, "res/icon/cloud.png"),
+        pen: icon_load(&mut display, &mut drawer, "res/icon/pen.png"),
+        play: icon_load(&mut display, &mut drawer, "res/icon/play.png"),
+        pause: icon_load(&mut display, &mut drawer, "res/icon/pause.png"),
+        stop: icon_load(&mut display, &mut drawer, "res/icon/stop.png"),
+        prev: icon_load(&mut display, &mut drawer, "res/icon/prev.png"),
+        next: icon_load(&mut display, &mut drawer, "res/icon/next.png"),
+        tools: icon_load(&mut display, &mut drawer, "res/icon/tools.png"),
+        dir: icon_load(&mut display, &mut drawer, "res/icon/directory.png"),
+        copy: icon_load(&mut display, &mut drawer, "res/icon/copy.png"),
+        convert: icon_load(&mut display, &mut drawer, "res/icon/export.png"),
+        del: icon_load(&mut display, &mut drawer, "res/icon/delete.png"),
+        edit: icon_load(&mut display, &mut drawer, "res/icon/edit.png"),
+        images: [icon_load(&mut display, &mut drawer, "res/images/image1.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image2.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image3.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image4.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image5.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image6.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image7.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image8.png"),
+                 icon_load(&mut display, &mut drawer, "res/images/image9.png")],
+        menu: [icon_load(&mut display, &mut drawer, "res/icon/home.png"),
+               icon_load(&mut display, &mut drawer, "res/icon/phone.png"),
+               icon_load(&mut display, &mut drawer, "res/icon/plane.png"),
+               icon_load(&mut display, &mut drawer, "res/icon/wifi.png"),
+               icon_load(&mut display, &mut drawer, "res/icon/settings.png"),
+               icon_load(&mut display, &mut drawer, "res/icon/volume.png")],
     };
 
     let mut basic_state = BasicState {
@@ -233,9 +223,10 @@ fn main() {
     config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
 
     'main: loop {
-
+		use glium::Surface;
+		
         ctx.input_begin();
-        for event in window.poll_events() {
+        for event in display.poll_events() {
             // println!("{:?}", event);
 
             match event {
@@ -278,18 +269,14 @@ fn main() {
                         ctx.input_scroll(y * 22f32);
                     }
                 }
-                glutin::Event::Resized(_, _) => {
-                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-                    drawer.col = main_color.clone();
-                }
                 _ => (),
             }
         }
         ctx.input_end();
 
         // println!("{:?}", event);
-        let (w, h) = window.get_inner_size_pixels().unwrap();
-        let (fw, fh) = window.get_inner_size().unwrap();
+        let (w, h) = display.get_window().unwrap().get_inner_size_pixels().unwrap();
+        let (fw, fh) = display.get_window().unwrap().get_inner_size().unwrap();
         let scale = NkVec2 {
             x: fw as f32 / w as f32,
             y: fh as f32 / h as f32,
@@ -299,19 +286,16 @@ fn main() {
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
-        encoder.clear(&main_color, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
-        drawer.draw(&mut ctx,
-                    &mut config,
-                    &mut encoder,
-                    &mut factory,
-                    fw,
-                    fh,
+        let mut frame = display.draw();
+		frame.clear_color(0.5, 0.3, 0.4, 1.0);
+		
+		drawer.draw(&mut ctx,
+	                &mut config,
+                    &mut frame,
                     scale);
-        encoder.flush(&mut device);
-        window.swap_buffers().unwrap();
-        device.cleanup();
+        frame.set_finish().unwrap();
 
-        ::std::thread::sleep(::std::time::Duration::from_millis(20));
+        //::std::thread::sleep(::std::time::Duration::from_millis(20));
 
         ctx.clear();
     }
@@ -342,7 +326,7 @@ fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
 }
 
 fn free_type(_: NkTextEdit, c: char) -> bool {
-    (c > '\u{0030}')
+    (c > '\u{0080}')
 }
 
 fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {

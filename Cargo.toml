@@ -1,16 +1,14 @@
 [package]
-name = "nuklear-sample-extended"
-version = "0.1.3"
+name = "nr-test"
+version = "0.1.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "~0.1", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.2"
-gfx_device_gl = "~0.13"
-gfx_window_glutin = "~0.14"
-gfx = "~0.14"
-glutin = "~0.7"
-image = "~0.12"
+nuklear-rust = {version = "*", features = ["rust_allocator"]}
+nuklear-backend-glium = { version = "*", path = "../nuklear-backend-glium"}
+glium = "*"
+glutin = "*"
+image = "*"
 
 [[bin]]
 name = "t"
