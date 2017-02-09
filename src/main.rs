@@ -88,9 +88,7 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
     let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
 
     let (w, h) = img.dimensions();
-    let data = img.into_vec();
-
-    let mut hnd = drawer.add_texture(factory, data.as_slice(), w, h);
+    let mut hnd = drawer.add_texture(factory, &img, w, h);
 
     NkImage::with_id(hnd.id().unwrap())
 }
