@@ -87,17 +87,15 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
     let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
 
     let (w, h) = img.dimensions();
-    let data = img.into_vec();
-
-    let mut hnd = drawer.add_texture(factory, data.as_slice(), w, h);
+    let mut hnd = drawer.add_texture(factory, &img, w, h);
 
     NkImage::with_id(hnd.id().unwrap())
 }
 
 fn main() {
-	let fw = 1280;
-	let fh = 800;
-    let (window, mut device, mut factory, mut render_target) = gfx_window_dxgi::init::<RenderFormat>(
+	let mut fw = 1280;
+	let mut fh = 800;
+    let (mut window, mut device, mut factory, render_target) = gfx_window_dxgi::init::<RenderFormat>(
     	winit::WindowBuilder::new()
     	    .with_dimensions(fw, fh)
     	    .with_title("dx11 window"))
@@ -114,14 +112,14 @@ fn main() {
     let mut allo = NkAllocator::new_vec();
 
     let mut drawer = Drawer::new(&mut factory,
-                                 &render_target,
+                                 render_target,
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
                                  NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
                                  GfxBackend::DX11Hlsl
     );
-
+    
     let mut atlas = NkFontAtlas::new(&mut allo);
 
     cfg.set_size(14f32);
@@ -224,8 +222,20 @@ fn main() {
     config.set_global_alpha(1.0f32);
     config.set_shape_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
     config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
+    
+    let mut resize = None;
 
     'main: loop {
+    	if let Some((width, height)) = resize {
+    		drawer.set_render_target(None);
+    		
+    		let new_rtv = gfx_window_dxgi::update_views::<RenderFormat>(&mut window, &mut factory, &mut device, width, height).unwrap();
+    		drawer.set_render_target(Some(new_rtv));
+    		fw = width as u32;
+    		fh = height as u32;
+
+            resize = None;
+        }
 
         ctx.input_begin();
         for event in window.poll_events() {
@@ -271,15 +281,14 @@ fn main() {
                         ctx.input_scroll(y * 22f32);
                     }
                 }
-                winit::Event::Resized(_, _) => {
-                    //gfx_window_winit::update_views(&window, &mut main_color, &mut main_depth);
-                    drawer.col = render_target.clone();
+                winit::Event::Resized(w, h) => {
+                	resize = Some((w as u16, h as u16));
                 }
                 _ => (),
             }
         }
         ctx.input_end();
-
+        
         // println!("{:?}", event);
         //let (w, h) = window.get_inner_size_pixels().unwrap();
         //let (fw, fh) = window.get_inner_size().unwrap();
@@ -292,7 +301,7 @@ fn main() {
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
-        encoder.clear(&render_target, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
+        encoder.clear(drawer.render_target().as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
         drawer.draw(&mut ctx,
                     &mut config,
                     &mut encoder,
