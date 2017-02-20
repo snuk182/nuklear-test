@@ -4,7 +4,7 @@ version = "0.1.3"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "~0.1", features = ["rust_allocator"]}
+nuklear-rust = {version = "~0.2", features = ["rust_allocator"]}
 nuklear-backend-gfx = "~0.2"
 gfx_device_gl = "~0.13"
 gfx_window_glutin = "~0.14"

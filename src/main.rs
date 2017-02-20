@@ -2,7 +2,6 @@
 extern crate nuklear_rust;
 extern crate nuklear_backend_gfx;
 
-#[macro_use]
 extern crate image;
 
 extern crate gfx;
@@ -53,6 +52,7 @@ struct GridState {
     check: bool,
 }
 
+#[allow(dead_code)]
 struct Media {
     font_14: NkFont,
     font_18: NkFont,
@@ -344,12 +344,8 @@ fn free_type(_: NkTextEdit, c: char) -> bool {
 }
 
 fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
-    let mut layout = NkPanel::default();
-    let mut combo = NkPanel::default();
-
     ctx.style_set_font(&media.font_20.handle());
-    if ctx.begin(&mut layout,
-                 nk_string!("Grid Nuklear Rust!"),
+    if ctx.begin(nk_string!("Grid Nuklear Rust!"),
                  NkRect {
                      x: 600f32,
                      y: 350f32,
@@ -384,8 +380,7 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
         ctx.text("Combobox:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
 
         let widget_width = ctx.widget_width();
-        if ctx.combo_begin_text(&mut combo,
-                                state.items[state.selected_item],
+        if ctx.combo_begin_text(state.items[state.selected_item],
                                 NkVec2 {
                                     x: widget_width,
                                     y: 200f32,
@@ -404,13 +399,9 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
 }
 
 fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) {
-    let mut layout = NkPanel::default();
-    let mut menu = NkPanel::default();
-
     ctx.style_set_font(&media.font_20.handle());
 
-    ctx.begin(&mut layout,
-              nk_string!("Button Nuklear Rust!"),
+    ctx.begin(nk_string!("Button Nuklear Rust!"),
               NkRect {
                   x: 50f32,
                   y: 50f32,
@@ -426,8 +417,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     {
         // toolbar
         ctx.layout_row_static(40f32, 40, 4);
-        if ctx.menu_begin_image(&mut menu,
-                                nk_string!("Music"),
+        if ctx.menu_begin_image(nk_string!("Music"),
                                 media.play.clone(),
                                 NkVec2 {
                                     x: 110f32,
@@ -559,8 +549,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     // ------------------------------------------------
     ctx.style_set_font(&media.font_18.handle());
     let bounds = ctx.window_get_bounds();
-    if ctx.contextual_begin(&mut menu,
-                            NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
+    if ctx.contextual_begin(NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
                             NkVec2 {
                                 x: 150f32,
                                 y: 300f32,
@@ -594,12 +583,8 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
 }
 
 fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
-    let mut layout = NkPanel::default();
-    let mut combo = NkPanel::default();
-
     ctx.style_set_font(&media.font_20.handle());
-    ctx.begin(&mut layout,
-              nk_string!("Basic Nuklear Rust!"),
+    ctx.begin(nk_string!("Basic Nuklear Rust!"),
               NkRect {
                   x: 320f32,
                   y: 50f32,
@@ -632,9 +617,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     //                  IMAGE POPUP
     // ------------------------------------------------
     if state.image_active {
-        let mut popup = NkPanel::default();
-        if ctx.popup_begin(&mut popup,
-                           NkPopupType::NK_POPUP_STATIC,
+        if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
                            nk_string!("Image Popup"),
                            0,
                            NkRect {
@@ -660,8 +643,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     ui_header(ctx, media, "Combo box");
     ui_widget(ctx, media, 40f32);
     let widget_width = ctx.widget_width();
-    if ctx.combo_begin_text(&mut combo,
-                            state.items[state.selected_item],
+    if ctx.combo_begin_text(state.items[state.selected_item],
                             NkVec2 {
                                 x: widget_width,
                                 y: 200f32,
@@ -677,8 +659,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
 
     ui_widget(ctx, media, 40f32);
     let widget_width = ctx.widget_width();
-    if ctx.combo_begin_image_text(&mut combo,
-                                  state.items[state.selected_icon],
+    if ctx.combo_begin_image_text(state.items[state.selected_icon],
                                   media.images[state.selected_icon].clone(),
                                   NkVec2 {
                                       x: widget_width,
@@ -714,7 +695,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     // ------------------------------------------------
     //                  PIEMENU
     // ------------------------------------------------
-    if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, layout.bounds(), true) {
+    if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, ctx.window_get_bounds(), true) {
         state.piemenu_pos = ctx.input().mouse().pos();
         state.piemenu_active = true;
     }
@@ -742,7 +723,6 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
 fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) -> i32 {
     let mut ret = -1i32;
     let mut total_space = NkRect::default();
-    let mut popup = NkPanel::default();
     let mut bounds = NkRect::default();
     let mut active_item = 0;
 
@@ -756,8 +736,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     ctx.style().window().set_spacing(NkVec2 { x: 0f32, y: 0f32 });
     ctx.style().window().set_padding(NkVec2 { x: 0f32, y: 0f32 });
 
-    if ctx.popup_begin(&mut popup,
-                       NkPopupType::NK_POPUP_STATIC,
+    if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
                        nk_string!("piemenu"),
                        NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
                        NkRect {
