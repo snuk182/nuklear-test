@@ -104,7 +104,7 @@ fn main() {
         .with_dimensions(1280, 800)
         .with_gl(gl_version);
 
-    let (window, mut device, mut factory, mut main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
+    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
 
@@ -119,7 +119,7 @@ fn main() {
     let mut allo = NkAllocator::new_vec();
 
     let mut drawer = Drawer::new(&mut factory,
-                                 &main_color,
+                                 main_color,
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
@@ -277,8 +277,9 @@ fn main() {
                     }
                 }
                 glutin::Event::Resized(_, _) => {
+                	let mut main_color = drawer.col.clone().unwrap();
                     gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-                    drawer.col = main_color.clone();
+                    drawer.col = Some(main_color);
                 }
                 _ => (),
             }
@@ -297,7 +298,7 @@ fn main() {
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
-        encoder.clear(&main_color, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
+        encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
         drawer.draw(&mut ctx,
                     &mut config,
                     &mut encoder,
@@ -696,7 +697,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     //                  PIEMENU
     // ------------------------------------------------
     if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, ctx.window_get_bounds(), true) {
-        state.piemenu_pos = ctx.input().mouse().pos();
+        state.piemenu_pos = ctx.input().mouse().pos().clone();
         state.piemenu_active = true;
     }
 
@@ -727,7 +728,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     let mut active_item = 0;
 
     // pie menu popup
-    let border = ctx.style().window().border_color();
+    let border = ctx.style().window().border_color().clone();
     let background = ctx.style().window().fixed_background();
     ctx.style().window().set_fixed_background(NkStyleItem::hide());
     ctx.style().window().set_border_color(color_rgba(0, 0, 0, 0));
@@ -845,6 +846,6 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     ctx.popup_end();
 
     ctx.style().window().set_fixed_background(background);
-    ctx.style().window().set_border_color(border);
+    ctx.style().window().set_border_color(border.clone());
     ret
 }
