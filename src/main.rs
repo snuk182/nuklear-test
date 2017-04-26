@@ -6,6 +6,7 @@ extern crate image;
 
 extern crate gfx;
 extern crate gfx_window_dxgi;
+extern crate gfx_device_dx11;
 
 extern crate winit;
 
@@ -112,7 +113,7 @@ fn main() {
     let mut allo = NkAllocator::new_vec();
 
     let mut drawer = Drawer::new(&mut factory,
-                                 &render_target,
+                                 render_target,
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
@@ -227,16 +228,15 @@ fn main() {
 
     'main: loop {
     	//not yet published
-    	/*if let Some((width, height)) = resize {
-    		drawer.set_render_target(None);
-    		
-    		let new_rtv = gfx_window_dxgi::update_views::<RenderFormat>(&mut window, &mut factory, &mut device, width, height).unwrap();
-    		drawer.set_render_target(Some(new_rtv));
+    	if let Some((width, height)) = resize {
+    		drawer.col = None;
+    		let new_rtv = gfx_window_dxgi::update_views(&mut window, &mut factory, &mut device, width, height).unwrap();
+    		drawer.col = Some(new_rtv);
     		fw = width as u32;
     		fh = height as u32;
 
             resize = None;
-        }*/
+        }
 
         ctx.input_begin();
         for event in window.poll_events() {
@@ -301,8 +301,12 @@ fn main() {
         basic_demo(&mut ctx, &mut media, &mut basic_state);
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
+        
+        if drawer.col.is_none() {
+        	continue;
+        }
 
-        encoder.clear(&render_target, [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
+        encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
         drawer.draw(&mut ctx,
                     &mut config,
                     &mut encoder,
@@ -701,7 +705,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     //                  PIEMENU
     // ------------------------------------------------
     if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, ctx.window_get_bounds(), true) {
-        state.piemenu_pos = ctx.input().mouse().pos();
+        state.piemenu_pos = ctx.input().mouse().pos().clone();
         state.piemenu_active = true;
     }
 
@@ -732,7 +736,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     let mut active_item = 0;
 
     // pie menu popup
-    let border = ctx.style().window().border_color();
+    let border = ctx.style().window().border_color().clone();
     let background = ctx.style().window().fixed_background();
     ctx.style().window().set_fixed_background(NkStyleItem::hide());
     ctx.style().window().set_border_color(color_rgba(0, 0, 0, 0));
