@@ -1,28 +1,25 @@
+#![feature(drop_types_in_const)]
+
 #[macro_use]
 extern crate nuklear_rust;
-extern crate nuklear_backend_gfx;
+extern crate nuklear_backend_gdi;
 
 extern crate image;
-
-extern crate gfx;
-extern crate gfx_window_glutin;
-extern crate glutin;
+extern crate winapi;
+extern crate user32;
+extern crate kernel32;
 
 use nuklear_rust::*;
-use nuklear_backend_gfx::{Drawer, GfxBackend};
-
-use glutin::GlRequest;
-use gfx::Device as Gd;
+use nuklear_backend_gdi::*;
 
 use std::fs::*;
 use std::io::BufReader;
+use std::{mem, ptr};
+use std::os::windows::ffi::OsStrExt;
+use std::ffi::OsStr;
 
-pub type ColorFormat = gfx::format::Rgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
-
-const MAX_VERTEX_MEMORY: usize = 512 * 1024;
-const MAX_ELEMENT_MEMORY: usize = 128 * 1024;
-const MAX_COMMANDS_MEMORY: usize = 64 * 1024;
+static mut NKCTX: Option<NkContext> = None;
+static mut DRAWER: Option<Drawer> = None;
 
 struct BasicState {
     image_active: bool,
@@ -54,13 +51,11 @@ struct GridState {
 
 #[allow(dead_code)]
 struct Media {
-    font_14: NkFont,
-    font_18: NkFont,
-    font_20: NkFont,
-    font_22: NkFont,
-
-    font_tex: NkHandle,
-
+    font_14: NkUserFont,
+    font_18: NkUserFont,
+    font_20: NkUserFont,
+    font_22: NkUserFont,
+    
     unchecked: NkImage,
     checked: NkImage,
     rocket: NkImage,
@@ -81,114 +76,131 @@ struct Media {
     menu: [NkImage; 6],
 }
 
-fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> NkImage
-    where F: gfx::Factory<R>
-{
+fn icon_load(drawer: &mut Drawer, filename: &str) -> NkImage {
 
-    let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
+    let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap();
 
-    let (w, h) = img.dimensions();
-    let mut hnd = drawer.add_texture(factory, &img, w, h);
+    let mut hnd = drawer.add_image(&img);
 
-    NkImage::with_id(hnd.id().unwrap())
+    NkImage::with_ptr(hnd.ptr().unwrap())
+}
+
+pub unsafe extern "system" fn callback(wnd: winapi::HWND, msg: winapi::UINT, wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> winapi::LRESULT {
+	match msg {
+		winapi::WM_DESTROY => {
+			user32::PostQuitMessage(0);
+			return 0;
+		}
+		_ => {
+			if NKCTX.is_some() && DRAWER.is_some() {
+				let mut nk_ctx = NKCTX.as_mut().unwrap();
+				let mut drawer = DRAWER.as_mut().unwrap();
+				
+				if drawer.handle_event(nk_ctx, wnd, msg, wparam, lparam) {
+					return 0;
+				}
+			} else {
+				println!("no contexts");
+			}
+		}
+	}
+	
+	user32::DefWindowProcW(wnd, msg, wparam, lparam)
+}
+
+unsafe fn register_window_class() -> Vec<u16> {
+    let class_name = OsStr::new("NuklearWindowClass").encode_wide().chain(Some(0).into_iter()).collect::<Vec<_>>();
+
+    let class = winapi::WNDCLASSEXW {
+        cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
+        style: winapi::CS_HREDRAW | winapi::CS_VREDRAW | winapi::CS_OWNDC,
+        lpfnWndProc: Some(callback),
+        cbClsExtra: 0,
+        cbWndExtra: 0,
+        hInstance: kernel32::GetModuleHandleW(ptr::null()),
+        hIcon: ptr::null_mut(),
+        hCursor: ptr::null_mut(),      
+        hbrBackground: ptr::null_mut(),
+        lpszMenuName: ptr::null(),
+        lpszClassName: class_name.as_ptr(),
+        hIconSm: ptr::null_mut(),
+    };
+
+    user32::RegisterClassExW(&class);
+
+    class_name
 }
 
 fn main() {
-    let gl_version = GlRequest::GlThenGles {
-        opengles_version: (2, 0),
-        opengl_version: (3, 3),
+	let class_name = unsafe { register_window_class() };
+	
+	let mut rect = winapi::RECT { left: 0, top:0, right: 1280, bottom: 800 };
+    let style = winapi::WS_OVERLAPPEDWINDOW;
+    let exstyle = winapi::WS_EX_APPWINDOW;
+    
+    unsafe { user32::AdjustWindowRectEx(&mut rect, style, winapi::FALSE, exstyle) };
+    let window_name = OsStr::new("Nuklear GDI Demo").encode_wide().chain(Some(0).into_iter()).collect::<Vec<_>>();
+	
+    let hwnd = unsafe { 
+    	user32::CreateWindowExW(exstyle,
+            class_name.as_ptr(),
+            window_name.as_ptr() as winapi::LPCWSTR,
+            style | winapi::WS_VISIBLE, winapi::CW_USEDEFAULT, winapi::CW_USEDEFAULT,
+			rect.right - rect.left, rect.bottom - rect.top,
+            ptr::null_mut(),
+            ptr::null_mut(), 
+            kernel32::GetModuleHandleW(ptr::null()),
+            ptr::null_mut()
+	    )
     };
 
-    let builder = glutin::WindowBuilder::new()
-        .with_depth_buffer(24)
-        .with_dimensions(1280, 800)
-        .with_gl(gl_version);
-
-    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
-    let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
-
-
-
-    let mut cfg = NkFontConfig::new(0.0);
-    cfg.set_oversample_h(3);
-    cfg.set_oversample_v(2);
-    cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
-    cfg.set_ttf(include_bytes!("../res/fonts/Roboto-Regular.ttf"));
-    cfg.set_ttf_data_owned_by_atlas(true);
+	let hdc = unsafe { user32::GetDC(hwnd) };    
 
     let mut allo = NkAllocator::new_vec();
 
-    let mut drawer = Drawer::new(&mut factory,
-                                 main_color,
-                                 36,
-                                 MAX_VERTEX_MEMORY,
-                                 MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
-								 GfxBackend::OpenGlsl150
-    );
+    unsafe {DRAWER = Some(Drawer::new(hdc, (rect.right - rect.left) as u16, (rect.bottom - rect.top) as u16)) };
+    let font = unsafe { DRAWER.as_mut().unwrap().new_font("Comic Sans", 14) };
 
-    let mut atlas = NkFontAtlas::new(&mut allo);
+    unsafe {NKCTX = Some(NkContext::new(&mut allo, &font)) };
 
-    cfg.set_size(14f32);
-    let mut font_14 = atlas.add_font_with_config(&cfg).unwrap();
-    cfg.set_size(18f32);
-    let font_18 = atlas.add_font_with_config(&cfg).unwrap();
-    cfg.set_size(20f32);
-    let font_20 = atlas.add_font_with_config(&cfg).unwrap();
-    cfg.set_size(22f32);
-    let font_22 = atlas.add_font_with_config(&cfg).unwrap();
+    let mut media = unsafe { Media {
+        font_14: font,
+        font_18: DRAWER.as_mut().unwrap().new_font("Comic Sans", 18),
+        font_20: DRAWER.as_mut().unwrap().new_font("Comic Sans", 20),
+        font_22: DRAWER.as_mut().unwrap().new_font("Comic Sans", 22),
 
-    let font_tex = {
-        let (b, w, h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-        drawer.add_texture(&mut factory, b, w, h)
-    };
-
-    let mut null = NkDrawNullTexture::default();
-
-    atlas.end(font_tex, Some(&mut null));
-
-    let mut ctx = NkContext::new(&mut allo, &font_14.handle());
-
-    let mut media = Media {
-        font_14: font_14,
-        font_18: font_18,
-        font_20: font_20,
-        font_22: font_22,
-
-        font_tex: font_tex,
-
-        unchecked: icon_load(&mut factory, &mut drawer, "res/icon/unchecked.png"),
-        checked: icon_load(&mut factory, &mut drawer, "res/icon/checked.png"),
-        rocket: icon_load(&mut factory, &mut drawer, "res/icon/rocket.png"),
-        cloud: icon_load(&mut factory, &mut drawer, "res/icon/cloud.png"),
-        pen: icon_load(&mut factory, &mut drawer, "res/icon/pen.png"),
-        play: icon_load(&mut factory, &mut drawer, "res/icon/play.png"),
-        pause: icon_load(&mut factory, &mut drawer, "res/icon/pause.png"),
-        stop: icon_load(&mut factory, &mut drawer, "res/icon/stop.png"),
-        prev: icon_load(&mut factory, &mut drawer, "res/icon/prev.png"),
-        next: icon_load(&mut factory, &mut drawer, "res/icon/next.png"),
-        tools: icon_load(&mut factory, &mut drawer, "res/icon/tools.png"),
-        dir: icon_load(&mut factory, &mut drawer, "res/icon/directory.png"),
-        copy: icon_load(&mut factory, &mut drawer, "res/icon/copy.png"),
-        convert: icon_load(&mut factory, &mut drawer, "res/icon/export.png"),
-        del: icon_load(&mut factory, &mut drawer, "res/icon/delete.png"),
-        edit: icon_load(&mut factory, &mut drawer, "res/icon/edit.png"),
-        images: [icon_load(&mut factory, &mut drawer, "res/images/image1.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image2.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image3.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image4.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image5.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image6.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image7.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image8.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image9.png")],
-        menu: [icon_load(&mut factory, &mut drawer, "res/icon/home.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/phone.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/plane.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/wifi.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/settings.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/volume.png")],
-    };
+        unchecked: icon_load(DRAWER.as_mut().unwrap(), "res/icon/unchecked.png"),
+        checked: icon_load(DRAWER.as_mut().unwrap(), "res/icon/checked.png"),
+        rocket: icon_load(DRAWER.as_mut().unwrap(), "res/icon/rocket.png"),
+        cloud: icon_load(DRAWER.as_mut().unwrap(), "res/icon/cloud.png"),
+        pen: icon_load(DRAWER.as_mut().unwrap(), "res/icon/pen.png"),
+        play: icon_load(DRAWER.as_mut().unwrap(), "res/icon/play.png"),
+        pause: icon_load(DRAWER.as_mut().unwrap(), "res/icon/pause.png"),
+        stop: icon_load(DRAWER.as_mut().unwrap(), "res/icon/stop.png"),
+        prev: icon_load(DRAWER.as_mut().unwrap(), "res/icon/prev.png"),
+        next: icon_load(DRAWER.as_mut().unwrap(), "res/icon/next.png"),
+        tools: icon_load(DRAWER.as_mut().unwrap(), "res/icon/tools.png"),
+        dir: icon_load(DRAWER.as_mut().unwrap(), "res/icon/directory.png"),
+        copy: icon_load(DRAWER.as_mut().unwrap(), "res/icon/copy.png"),
+        convert: icon_load(DRAWER.as_mut().unwrap(), "res/icon/export.png"),
+        del: icon_load(DRAWER.as_mut().unwrap(), "res/icon/delete.png"),
+        edit: icon_load(DRAWER.as_mut().unwrap(), "res/icon/edit.png"),
+        images: [icon_load(DRAWER.as_mut().unwrap(), "res/images/image1.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image2.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image3.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image4.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image5.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image6.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image7.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image8.png"),
+                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image9.png")],
+        menu: [icon_load(DRAWER.as_mut().unwrap(), "res/icon/home.png"),
+               icon_load(DRAWER.as_mut().unwrap(), "res/icon/phone.png"),
+               icon_load(DRAWER.as_mut().unwrap(), "res/icon/plane.png"),
+               icon_load(DRAWER.as_mut().unwrap(), "res/icon/wifi.png"),
+               icon_load(DRAWER.as_mut().unwrap(), "res/icon/settings.png"),
+               icon_load(DRAWER.as_mut().unwrap(), "res/icon/volume.png")],
+    } };
 
     let mut basic_state = BasicState {
         image_active: false,
@@ -218,116 +230,53 @@ fn main() {
         check: true,
     };
 
-    let mut mx = 0;
-    let mut my = 0;
-
-    let mut config = NkConvertConfig::default();
-    config.set_null(null.clone());
-    config.set_circle_segment_count(22);
-    config.set_curve_segment_count(22);
-    config.set_arc_segment_count(22);
-    config.set_global_alpha(1.0f32);
-    config.set_shape_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
-    config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
+    let mut refresh = true;
+    
+    let clear_color = NkColor {r: 10, g: 150, b: 190, a: 255};
 
     'main: loop {
+         unsafe {
+    		let mut msg: winapi::MSG = mem::zeroed();
+	        NKCTX.as_mut().unwrap().input_begin();
+	        
+	        if !refresh {
+	            if user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) <= 0 {
+	                break 'main;
+	            } else {
+	                user32::TranslateMessage(&mut msg);
+	                user32::DispatchMessageW(&mut msg);
+	            }
+	            refresh = true;
+			} else {
+				refresh = false;
+			}
+	        
+	        NKCTX.as_mut().unwrap().input_end();
+	    }
 
-        ctx.input_begin();
-        for event in window.poll_events() {
-            // println!("{:?}", event);
-
-            match event {
-                glutin::Event::Closed => break 'main,
-                glutin::Event::ReceivedCharacter(c) => {
-                    ctx.input_unicode(c);
-                }
-                glutin::Event::KeyboardInput(s, _, k) => {
-                    if let Some(k) = k {
-                        let key = match k {
-                            glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-                            glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-                            glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-                            glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-                            glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-                            glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-                            _ => NkKey::NK_KEY_NONE,
-                        };
-
-                        ctx.input_key(key, s == glutin::ElementState::Pressed);
-                    }
-                }
-                glutin::Event::MouseMoved(x, y) => {
-                    mx = x;
-                    my = y;
-                    ctx.input_motion(x, y);
-                }
-                glutin::Event::MouseInput(s, b) => {
-                    let button = match b {
-                        glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-                        glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-                        glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-                        _ => NkButton::NK_BUTTON_MAX,
-                    };
-
-                    ctx.input_button(button, mx, my, s == glutin::ElementState::Pressed)
-                }
-                glutin::Event::MouseWheel(d, _) => {
-                    if let glutin::MouseScrollDelta::LineDelta(_, y) = d {
-                        ctx.input_scroll(y * 22f32);
-                    }
-                }
-                glutin::Event::Resized(_, _) => {
-                	let mut main_color = drawer.col.clone().unwrap();
-                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-                    drawer.col = Some(main_color);
-                }
-                _ => (),
-            }
+        unsafe { 
+        	basic_demo(NKCTX.as_mut().unwrap(), &mut media, &mut basic_state);
+	        button_demo(NKCTX.as_mut().unwrap(), &mut media, &mut button_state);
+	        grid_demo(NKCTX.as_mut().unwrap(), &mut media, &mut grid_state);
+	        
+	        DRAWER.as_mut().unwrap().render(NKCTX.as_mut().unwrap(), clear_color);
+	
+	        NKCTX.as_mut().unwrap().clear();
         }
-        ctx.input_end();
-
-        // println!("{:?}", event);
-        let (w, h) = window.get_inner_size_pixels().unwrap();
-        let (fw, fh) = window.get_inner_size().unwrap();
-        let scale = NkVec2 {
-            x: fw as f32 / w as f32,
-            y: fh as f32 / h as f32,
-        };
-
-        basic_demo(&mut ctx, &mut media, &mut basic_state);
-        button_demo(&mut ctx, &mut media, &mut button_state);
-        grid_demo(&mut ctx, &mut media, &mut grid_state);
-
-        encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
-        drawer.draw(&mut ctx,
-                    &mut config,
-                    &mut encoder,
-                    &mut factory,
-                    fw,
-                    fh,
-                    scale);
-        encoder.flush(&mut device);
-        window.swap_buffers().unwrap();
-        device.cleanup();
-
-        ::std::thread::sleep(::std::time::Duration::from_millis(20));
-
-        ctx.clear();
     }
-
-    atlas.clear();
-    ctx.free();
+	
+	unsafe { NKCTX.as_mut().unwrap().free() };
 }
 
 fn ui_header(ctx: &mut NkContext, media: &mut Media, title: &str) {
-    ctx.style_set_font(&media.font_18.handle());
+    ctx.style_set_font(&media.font_18);
     ctx.layout_row_dynamic(20f32, 1);
     ctx.text(title, NkTextAlignment::NK_TEXT_LEFT as NkFlags);
 }
 
 const RATIO_W: [f32; 2] = [0.15f32, 0.85f32];
 fn ui_widget(ctx: &mut NkContext, media: &mut Media, height: f32) {
-    ctx.style_set_font(&media.font_22.handle());
+    ctx.style_set_font(&media.font_22);
     ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_W);
     // ctx.layout_row_dynamic(height, 1);
     ctx.spacing(1);
@@ -335,7 +284,7 @@ fn ui_widget(ctx: &mut NkContext, media: &mut Media, height: f32) {
 
 const RATIO_WC: [f32; 3] = [0.15f32, 0.50f32, 0.35f32];
 fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
-    ctx.style_set_font(&media.font_22.handle());
+    ctx.style_set_font(&media.font_22);
     ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
     ctx.spacing(1);
 }
@@ -345,7 +294,7 @@ fn free_type(_: NkTextEdit, c: char) -> bool {
 }
 
 fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
-    ctx.style_set_font(&media.font_20.handle());
+    ctx.style_set_font(&media.font_20);
     if ctx.begin(nk_string!("Grid Nuklear Rust!"),
                  NkRect {
                      x: 600f32,
@@ -354,7 +303,7 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
                      h: 250f32,
                  },
                  NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags | NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags) {
-        ctx.style_set_font(&media.font_18.handle());
+        ctx.style_set_font(&media.font_18);
         ctx.layout_row_dynamic(30f32, 2);
         ctx.text("Free type:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
         ctx.edit_string_custom_filter(NkEditType::NK_EDIT_FIELD as NkFlags,
@@ -396,11 +345,11 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
         }
     }
     ctx.end();
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(&media.font_14);
 }
 
 fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) {
-    ctx.style_set_font(&media.font_20.handle());
+    ctx.style_set_font(&media.font_20);
 
     ctx.begin(nk_string!("Button Nuklear Rust!"),
               NkRect {
@@ -548,7 +497,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     // ------------------------------------------------
     //                  CONTEXTUAL
     // ------------------------------------------------
-    ctx.style_set_font(&media.font_18.handle());
+    ctx.style_set_font(&media.font_18);
     let bounds = ctx.window_get_bounds();
     if ctx.contextual_begin(NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
                             NkVec2 {
@@ -579,12 +528,12 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
         }
         ctx.contextual_end();
     }
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(&media.font_14);
     ctx.end();
 }
 
 fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
-    ctx.style_set_font(&media.font_20.handle());
+    ctx.style_set_font(&media.font_20);
     ctx.begin(nk_string!("Basic Nuklear Rust!"),
               NkRect {
                   x: 320f32,
@@ -711,7 +660,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
             state.piemenu_active = false;
         }
     }
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(&media.font_14);
     ctx.end();
 }
 

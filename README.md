@@ -1,2 +1,2 @@
 # A separate project for testing [Rust bindings for Nuklear](https://github.com/snuk182/nuklear-rust) . 
-A [gfx-rs (OpenGL(ES))](https://github.com/gfx-rs/gfx)-based test.
+A [WinAPI GDI](https://msdn.microsoft.com/en-us/library/windows/desktop/dd145203(v=vs.85).aspx)-based test.

@@ -1,15 +1,14 @@
 [package]
 name = "nuklear-sample-extended"
-version = "0.1.3"
+version = "0.1.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "~0.2", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.3"
-gfx_device_gl = "~0.14"
-gfx_window_glutin = "~0.15"
-gfx = "~0.15"
-glutin = "~0.7"
+nuklear-rust = {version = "~0.2", features = ["rust_allocator"], path = "../nuklear-rust"}
+nuklear-backend-gdi = {version = "~0.1", features = ["piston_image"], path = "../nuklear-backend-gdi"}
+winapi = "~0.2"
+user32-sys = "~0.2"
+kernel32-sys = "~0.2"
 image = "~0.12"
 
 [[bin]]
