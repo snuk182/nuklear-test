@@ -291,7 +291,7 @@ fn ui_widget_centered(ctx: &mut NkContext, dr: &Drawer, media: &mut Media, heigh
     ctx.spacing(1);
 }
 
-fn free_type(_: &mut NkTextEdit, c: char) -> bool {
+fn free_type(_: &NkTextEdit, c: char) -> bool {
     (c > '\u{0030}')
 }
 
