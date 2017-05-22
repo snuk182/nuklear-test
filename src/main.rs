@@ -14,12 +14,6 @@ use nuklear_backend_gdi::*;
 
 use std::fs::*;
 use std::io::BufReader;
-use std::{mem, ptr};
-use std::os::windows::ffi::OsStrExt;
-use std::ffi::OsStr;
-
-static mut NKCTX: Option<NkContext> = None;
-static mut DRAWER: Option<Drawer> = None;
 
 struct BasicState {
     image_active: bool,
@@ -85,124 +79,48 @@ fn icon_load(drawer: &mut Drawer, filename: &str) -> NkImage {
     NkImage::with_ptr(hnd.ptr().unwrap())
 }
 
-pub unsafe extern "system" fn callback(wnd: winapi::HWND, msg: winapi::UINT, wparam: winapi::WPARAM, lparam: winapi::LPARAM) -> winapi::LRESULT {
-	match msg {
-		winapi::WM_DESTROY => {
-			user32::PostQuitMessage(0);
-			return 0;
-		}
-		_ => {
-			if NKCTX.is_some() && DRAWER.is_some() {
-				let mut nk_ctx = NKCTX.as_mut().unwrap();
-				let mut drawer = DRAWER.as_mut().unwrap();
-				
-				if drawer.handle_event(nk_ctx, wnd, msg, wparam, lparam) {
-					return 0;
-				}
-			} else {
-				println!("no contexts");
-			}
-		}
-	}
-	
-	user32::DefWindowProcW(wnd, msg, wparam, lparam)
-}
-
-unsafe fn register_window_class() -> Vec<u16> {
-    let class_name = OsStr::new("NuklearWindowClass").encode_wide().chain(Some(0).into_iter()).collect::<Vec<_>>();
-
-    let class = winapi::WNDCLASSEXW {
-        cbSize: mem::size_of::<winapi::WNDCLASSEXW>() as winapi::UINT,
-        style: winapi::CS_DBLCLKS,
-        lpfnWndProc: Some(callback),
-        cbClsExtra: 0,
-        cbWndExtra: 0,
-        hInstance: kernel32::GetModuleHandleW(ptr::null()),
-        hIcon: user32::LoadIconW(ptr::null_mut(), winapi::IDI_APPLICATION),
-        hCursor: user32::LoadCursorW(ptr::null_mut(), winapi::IDC_ARROW),      
-        hbrBackground: ptr::null_mut(),
-        lpszMenuName: ptr::null(),
-        lpszClassName: class_name.as_ptr(),
-        hIconSm: ptr::null_mut(),
-    };
-
-    user32::RegisterClassExW(&class);
-
-    class_name
-}
-
 fn main() {
-	let class_name = unsafe { register_window_class() };
+	let mut allo = NkAllocator::new_vec();
+	let (mut drawer, mut context, font) = nuklear_backend_gdi::bundle("Nuklear Rust GDI Demo", 1280, 800, "Monospace", 14, &mut allo);
 	
-	let mut rect = winapi::RECT { left: 0, top:0, right: 1280, bottom: 800 };
-    let style = winapi::WS_OVERLAPPEDWINDOW;
-    let exstyle = winapi::WS_EX_APPWINDOW;
-    
-    unsafe { user32::AdjustWindowRectEx(&mut rect, style, winapi::FALSE, exstyle) };
-    let window_name = OsStr::new("Nuklear Rust GDI Demo").encode_wide().chain(Some(0).into_iter()).collect::<Vec<_>>();
-	
-    let hwnd = unsafe { 
-    	user32::CreateWindowExW(exstyle,
-            class_name.as_ptr(),
-            window_name.as_ptr() as winapi::LPCWSTR,
-            style | winapi::WS_VISIBLE, winapi::CW_USEDEFAULT, winapi::CW_USEDEFAULT,
-			rect.right - rect.left, rect.bottom - rect.top,
-            ptr::null_mut(),
-            ptr::null_mut(), 
-            kernel32::GetModuleHandleW(ptr::null()),
-            ptr::null_mut()
-	    )
+	let mut media = Media {
+        font_14: font,
+        font_18: drawer.new_font("Comic Sans", 18),
+        font_20: drawer.new_font("Comic Sans", 20),
+        font_22: drawer.new_font("Comic Sans", 22),
+
+        unchecked: icon_load(&mut drawer, "res/icon/unchecked.png"),
+        checked: icon_load(&mut drawer, "res/icon/checked.png"),
+        rocket: icon_load(&mut drawer, "res/icon/rocket.png"),
+        cloud: icon_load(&mut drawer, "res/icon/cloud.png"),
+        pen: icon_load(&mut drawer, "res/icon/pen.png"),
+        play: icon_load(&mut drawer, "res/icon/play.png"),
+        pause: icon_load(&mut drawer, "res/icon/pause.png"),
+        stop: icon_load(&mut drawer, "res/icon/stop.png"),
+        prev: icon_load(&mut drawer, "res/icon/prev.png"),
+        next: icon_load(&mut drawer, "res/icon/next.png"),
+        tools: icon_load(&mut drawer, "res/icon/tools.png"),
+        dir: icon_load(&mut drawer, "res/icon/directory.png"),
+        copy: icon_load(&mut drawer, "res/icon/copy.png"),
+        convert: icon_load(&mut drawer, "res/icon/export.png"),
+        del: icon_load(&mut drawer, "res/icon/delete.png"),
+        edit: icon_load(&mut drawer, "res/icon/edit.png"),
+        images: [icon_load(&mut drawer, "res/images/image1.png"),
+                 icon_load(&mut drawer, "res/images/image2.png"),
+                 icon_load(&mut drawer, "res/images/image3.png"),
+                 icon_load(&mut drawer, "res/images/image4.png"),
+                 icon_load(&mut drawer, "res/images/image5.png"),
+                 icon_load(&mut drawer, "res/images/image6.png"),
+                 icon_load(&mut drawer, "res/images/image7.png"),
+                 icon_load(&mut drawer, "res/images/image8.png"),
+                 icon_load(&mut drawer, "res/images/image9.png")],
+        menu: [icon_load(&mut drawer, "res/icon/home.png"),
+               icon_load(&mut drawer, "res/icon/phone.png"),
+               icon_load(&mut drawer, "res/icon/plane.png"),
+               icon_load(&mut drawer, "res/icon/wifi.png"),
+               icon_load(&mut drawer, "res/icon/settings.png"),
+               icon_load(&mut drawer, "res/icon/volume.png")],
     };
-
-	let mut media = unsafe {
-		let hdc = user32::GetDC(hwnd);    
-
-	    let mut allo = NkAllocator::new_vec();
-		let mut drawer = Drawer::new(hdc, (rect.right - rect.left) as u16, (rect.bottom - rect.top) as u16, Some(hwnd));
-	    let font = drawer.new_font("Comic Sans", 14);
-	    
-		NKCTX = Some(NkContext::new(&mut allo, drawer.font_by_id(font).unwrap()));
-	    DRAWER = Some(drawer);	    
-	    
-	    Media {
-	        font_14: font,
-	        font_18: DRAWER.as_mut().unwrap().new_font("Comic Sans", 18),
-	        font_20: DRAWER.as_mut().unwrap().new_font("Comic Sans", 20),
-	        font_22: DRAWER.as_mut().unwrap().new_font("Comic Sans", 22),
-	
-	        unchecked: icon_load(DRAWER.as_mut().unwrap(), "res/icon/unchecked.png"),
-	        checked: icon_load(DRAWER.as_mut().unwrap(), "res/icon/checked.png"),
-	        rocket: icon_load(DRAWER.as_mut().unwrap(), "res/icon/rocket.png"),
-	        cloud: icon_load(DRAWER.as_mut().unwrap(), "res/icon/cloud.png"),
-	        pen: icon_load(DRAWER.as_mut().unwrap(), "res/icon/pen.png"),
-	        play: icon_load(DRAWER.as_mut().unwrap(), "res/icon/play.png"),
-	        pause: icon_load(DRAWER.as_mut().unwrap(), "res/icon/pause.png"),
-	        stop: icon_load(DRAWER.as_mut().unwrap(), "res/icon/stop.png"),
-	        prev: icon_load(DRAWER.as_mut().unwrap(), "res/icon/prev.png"),
-	        next: icon_load(DRAWER.as_mut().unwrap(), "res/icon/next.png"),
-	        tools: icon_load(DRAWER.as_mut().unwrap(), "res/icon/tools.png"),
-	        dir: icon_load(DRAWER.as_mut().unwrap(), "res/icon/directory.png"),
-	        copy: icon_load(DRAWER.as_mut().unwrap(), "res/icon/copy.png"),
-	        convert: icon_load(DRAWER.as_mut().unwrap(), "res/icon/export.png"),
-	        del: icon_load(DRAWER.as_mut().unwrap(), "res/icon/delete.png"),
-	        edit: icon_load(DRAWER.as_mut().unwrap(), "res/icon/edit.png"),
-	        images: [icon_load(DRAWER.as_mut().unwrap(), "res/images/image1.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image2.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image3.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image4.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image5.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image6.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image7.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image8.png"),
-	                 icon_load(DRAWER.as_mut().unwrap(), "res/images/image9.png")],
-	        menu: [icon_load(DRAWER.as_mut().unwrap(), "res/icon/home.png"),
-	               icon_load(DRAWER.as_mut().unwrap(), "res/icon/phone.png"),
-	               icon_load(DRAWER.as_mut().unwrap(), "res/icon/plane.png"),
-	               icon_load(DRAWER.as_mut().unwrap(), "res/icon/wifi.png"),
-	               icon_load(DRAWER.as_mut().unwrap(), "res/icon/settings.png"),
-	               icon_load(DRAWER.as_mut().unwrap(), "res/icon/volume.png")],
-	    }
-	};
 
     let mut basic_state = BasicState {
         image_active: false,
@@ -232,42 +150,21 @@ fn main() {
         check: true,
     };
 
-    let mut refresh = true;
-    
-    let clear_color = NkColor {r: 10, g: 150, b: 190, a: 255};
+    let clear_color = NkColor {r: 190, g: 150, b: 10, a: 255};
 
     'main: loop {
-         unsafe {
-    		let mut msg: winapi::MSG = mem::zeroed();
-	        NKCTX.as_mut().unwrap().input_begin();
-	        
-	        if !refresh {
-	            if user32::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) <= 0 {
-	                break 'main;
-	            } else {
-	                user32::TranslateMessage(&mut msg);
-	                user32::DispatchMessageW(&mut msg);
-	            }
-	            refresh = true;
-			} else {
-				refresh = false;
-			}
-	        
-	        NKCTX.as_mut().unwrap().input_end();
-	    }
+    	if !drawer.process_events(&mut context) { break 'main }
 
-        unsafe { 
-        	basic_demo(NKCTX.as_mut().unwrap(), DRAWER.as_mut().unwrap(), &mut media, &mut basic_state);
-	        button_demo(NKCTX.as_mut().unwrap(), DRAWER.as_mut().unwrap(), &mut media, &mut button_state);
-	        grid_demo(NKCTX.as_mut().unwrap(), DRAWER.as_mut().unwrap(), &mut media, &mut grid_state);
-	        
-	        DRAWER.as_mut().unwrap().render(NKCTX.as_mut().unwrap(), clear_color);
-	
-	        NKCTX.as_mut().unwrap().clear();
-        }
+    	basic_demo(&mut context, &mut drawer, &mut media, &mut basic_state);
+        button_demo(&mut context, &mut drawer, &mut media, &mut button_state);
+        grid_demo(&mut context, &mut drawer, &mut media, &mut grid_state);
+        
+        drawer.render(&mut context, clear_color);
+
+        context.clear();
     }
 	
-	unsafe { NKCTX.as_mut().unwrap().free() };
+	context.free();
 }
 
 fn ui_header(ctx: &mut NkContext, dr: &Drawer, media: &mut Media, title: &str) {
