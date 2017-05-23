@@ -4,8 +4,8 @@ version = "0.1.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "*", features = ["rust_allocator"]}
-nuklear-backend-glium = { version = "*", path = "../nuklear-backend-glium"}
+nuklear-rust = {version = "~0.3", features = ["rust_allocator"], path = "../nuklear-rust" }
+nuklear-backend-glium = { version = "~0.2", path = "../nuklear-backend-glium" }
 glium = "*"
 glutin = "*"
 image = "*"
