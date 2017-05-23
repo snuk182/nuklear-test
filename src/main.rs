@@ -569,12 +569,11 @@ fn basic_demo(ctx: &mut NkContext, dr: &Drawer, media: &mut Media, state: &mut B
 //                          CUSTOM WIDGET
 //
 // ===============================================================
-#[allow(unused_assignments)]
 fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) -> i32 {
     let mut ret = -1i32;
-    let mut total_space = NkRect::default();
+    let mut total_space;
     let mut bounds = NkRect::default();
-    let mut active_item = 0;
+    let active_item;
 
     // pie menu popup
     let border = ctx.style().window().border_color().clone();
