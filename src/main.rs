@@ -54,10 +54,10 @@ struct GridState {
 
 #[allow(dead_code)]
 struct Media {
-    font_14: NkFont,
-    font_18: NkFont,
-    font_20: NkFont,
-    font_22: NkFont,
+    font_14: Box<NkFont>,
+    font_18: Box<NkFont>,
+    font_20: Box<NkFont>,
+    font_22: Box<NkFont>,
 
     font_tex: NkHandle,
 
@@ -103,7 +103,7 @@ fn main() {
     .unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
-    let mut cfg = NkFontConfig::new(0.0);
+    let mut cfg = NkFontConfig::with_size(0.0);
     cfg.set_oversample_h(3);
     cfg.set_oversample_v(2);
     cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
@@ -124,7 +124,7 @@ fn main() {
     let mut atlas = NkFontAtlas::new(&mut allo);
 
     cfg.set_size(14f32);
-    let mut font_14 = atlas.add_font_with_config(&cfg).unwrap();
+    let font_14 = atlas.add_font_with_config(&cfg).unwrap();
     cfg.set_size(18f32);
     let font_18 = atlas.add_font_with_config(&cfg).unwrap();
     cfg.set_size(20f32);
@@ -348,7 +348,7 @@ fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
     ctx.spacing(1);
 }
 
-fn free_type(_: NkTextEdit, c: char) -> bool {
+fn free_type(_: &NkTextEdit, c: char) -> bool {
     (c > '\u{0030}')
 }
 
@@ -704,7 +704,8 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     // ------------------------------------------------
     //                  PIEMENU
     // ------------------------------------------------
-    if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, ctx.window_get_bounds(), true) {
+    let bounds = ctx.window_get_bounds();
+    if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, bounds, true) {
         state.piemenu_pos = ctx.input().mouse().pos().clone();
         state.piemenu_active = true;
     }
@@ -728,12 +729,11 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
 //                          CUSTOM WIDGET
 //
 // ===============================================================
-#[allow(unused_assignments)]
 fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) -> i32 {
     let mut ret = -1i32;
-    let mut total_space = NkRect::default();
+    let mut total_space;
     let mut bounds = NkRect::default();
-    let mut active_item = 0;
+    let active_item;
 
     // pie menu popup
     let border = ctx.style().window().border_color().clone();
@@ -754,18 +754,19 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
                            w: 2f32 * radius,
                            h: 2f32 * radius,
                        }) {
-        let mut out = ctx.window_get_canvas().unwrap();
-        let inp = ctx.input();
-
+        
         total_space = ctx.window_get_content_region();
         ctx.style().window().set_spacing(NkVec2 { x: 4f32, y: 4f32 });
         ctx.style().window().set_padding(NkVec2 { x: 8f32, y: 8f32 });
         ctx.layout_row_dynamic(total_space.h, 1);
         ctx.widget(&mut bounds);
 
-        // outer circle
-        out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
         {
+        	let mouse = ctx.input().mouse();
+			let mut out = ctx.window_get_canvas().unwrap();
+			
+	        // outer circle        
+	        out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
             // circle buttons
             let step = (2f32 * ::std::f32::consts::PI) / (::std::cmp::max(1, icons.len()) as f32);
             let mut a_min = 0f32;
@@ -776,8 +777,8 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
                 y: bounds.y + bounds.h / 2.0f32,
             };
             let drag = NkVec2 {
-                x: inp.mouse().pos().x - center.x,
-                y: inp.mouse().pos().y - center.y,
+                x: mouse.pos().x - center.x,
+                y: mouse.pos().y - center.y,
             };
             let mut angle = drag.y.atan2(drag.x);
             if angle < -0.0f32 {
@@ -824,7 +825,9 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             }
         }
         {
-            // inner circle
+            let mut out = ctx.window_get_canvas().unwrap();
+	        
+	        // inner circle
             let mut inner = NkRect::default();
             inner.x = bounds.x + bounds.w / 2f32 - bounds.w / 4f32;
             inner.y = bounds.y + bounds.h / 2f32 - bounds.h / 4f32;
@@ -854,6 +857,6 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     ctx.popup_end();
 
     ctx.style().window().set_fixed_background(background);
-    ctx.style().window().set_border_color(border);
+    ctx.style().window().set_border_color(border.clone());
     ret
 }
