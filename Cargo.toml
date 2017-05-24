@@ -5,7 +5,7 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
 nuklear-rust = {version = "~0.3", features = ["rust_allocator"]}
-nuklear-backend-gdi = {version = "~0.1", features = ["piston_image"], path = "../nuklear-backend-gdi"}
+nuklear-backend-gdi = {version = "~0.1", features = ["piston_image"]}
 winapi = "~0.2"
 user32-sys = "~0.2"
 kernel32-sys = "~0.2"
