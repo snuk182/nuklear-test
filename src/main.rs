@@ -161,7 +161,7 @@ fn main() {
         
         drawer.render(&mut context, clear_color);
 
-        context.clear();
+        //context.clear();
     }
 	
 	context.free();
