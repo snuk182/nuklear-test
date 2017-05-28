@@ -85,7 +85,9 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
     where F: gfx::Factory<R>
 {
 
-    let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
+    let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG)
+        .unwrap()
+        .to_rgba();
 
     let (w, h) = img.dimensions();
     let mut hnd = drawer.add_texture(factory, &img, w, h);
@@ -104,7 +106,8 @@ fn main() {
         .with_dimensions(1280, 800)
         .with_gl(gl_version);
 
-    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder);
+    let event_loop = glutin::EventsLoop::new();
+    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, &event_loop);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
 
@@ -124,8 +127,7 @@ fn main() {
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
                                  NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
-								 GfxBackend::OpenGlsl150
-    );
+                                 GfxBackend::OpenGlsl150);
 
     let mut atlas = NkFontAtlas::new(&mut allo);
 
@@ -230,18 +232,17 @@ fn main() {
     config.set_shape_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
     config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
 
-    'main: loop {
-
+    let mut closed = false;
+    while !closed {
         ctx.input_begin();
-        for event in window.poll_events() {
-            // println!("{:?}", event);
-
+        event_loop.poll_events(|event| {
+            let glutin::Event::WindowEvent { event, .. } = event;
             match event {
-                glutin::Event::Closed => break 'main,
-                glutin::Event::ReceivedCharacter(c) => {
+                glutin::WindowEvent::Closed => closed = true,
+                glutin::WindowEvent::ReceivedCharacter(c) => {
                     ctx.input_unicode(c);
                 }
-                glutin::Event::KeyboardInput(s, _, k) => {
+                glutin::WindowEvent::KeyboardInput(s, _, k, _) => {
                     if let Some(k) = k {
                         let key = match k {
                             glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
@@ -256,12 +257,12 @@ fn main() {
                         ctx.input_key(key, s == glutin::ElementState::Pressed);
                     }
                 }
-                glutin::Event::MouseMoved(x, y) => {
+                glutin::WindowEvent::MouseMoved(x, y) => {
                     mx = x;
                     my = y;
                     ctx.input_motion(x, y);
                 }
-                glutin::Event::MouseInput(s, b) => {
+                glutin::WindowEvent::MouseInput(s, b) => {
                     let button = match b {
                         glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
                         glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
@@ -271,19 +272,19 @@ fn main() {
 
                     ctx.input_button(button, mx, my, s == glutin::ElementState::Pressed)
                 }
-                glutin::Event::MouseWheel(d, _) => {
+                glutin::WindowEvent::MouseWheel(d, _) => {
                     if let glutin::MouseScrollDelta::LineDelta(_, y) = d {
                         ctx.input_scroll(y * 22f32);
                     }
                 }
-                glutin::Event::Resized(_, _) => {
-                	let mut main_color = drawer.col.clone().unwrap();
+                glutin::WindowEvent::Resized(_, _) => {
+                    let mut main_color = drawer.col.clone().unwrap();
                     gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
                     drawer.col = Some(main_color);
                 }
                 _ => (),
             }
-        }
+        });
         ctx.input_end();
 
         // println!("{:?}", event);
@@ -298,7 +299,8 @@ fn main() {
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
-        encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
+        encoder.clear(drawer.col.as_ref().unwrap(),
+                      [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
         drawer.draw(&mut ctx,
                     &mut config,
                     &mut encoder,
@@ -697,7 +699,8 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     //                  PIEMENU
     // ------------------------------------------------
     let bounds = ctx.window_get_bounds();
-    if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, bounds, true) {
+    if ctx.input()
+           .is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, bounds, true) {
         state.piemenu_pos = ctx.input().mouse().pos().clone();
         state.piemenu_active = true;
     }
@@ -730,12 +733,20 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     // pie menu popup
     let border = ctx.style().window().border_color().clone();
     let background = ctx.style().window().fixed_background();
-    ctx.style().window().set_fixed_background(NkStyleItem::hide());
-    ctx.style().window().set_border_color(color_rgba(0, 0, 0, 0));
+    ctx.style()
+        .window()
+        .set_fixed_background(NkStyleItem::hide());
+    ctx.style()
+        .window()
+        .set_border_color(color_rgba(0, 0, 0, 0));
 
     total_space = ctx.window_get_content_region();
-    ctx.style().window().set_spacing(NkVec2 { x: 0f32, y: 0f32 });
-    ctx.style().window().set_padding(NkVec2 { x: 0f32, y: 0f32 });
+    ctx.style()
+        .window()
+        .set_spacing(NkVec2 { x: 0f32, y: 0f32 });
+    ctx.style()
+        .window()
+        .set_padding(NkVec2 { x: 0f32, y: 0f32 });
 
     if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
                        nk_string!("piemenu"),
@@ -746,19 +757,23 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
                            w: 2f32 * radius,
                            h: 2f32 * radius,
                        }) {
-        
+
         total_space = ctx.window_get_content_region();
-        ctx.style().window().set_spacing(NkVec2 { x: 4f32, y: 4f32 });
-        ctx.style().window().set_padding(NkVec2 { x: 8f32, y: 8f32 });
+        ctx.style()
+            .window()
+            .set_spacing(NkVec2 { x: 4f32, y: 4f32 });
+        ctx.style()
+            .window()
+            .set_padding(NkVec2 { x: 8f32, y: 8f32 });
         ctx.layout_row_dynamic(total_space.h, 1);
         ctx.widget(&mut bounds);
 
         {
-        	let mouse = ctx.input().mouse();
-			let mut out = ctx.window_get_canvas().unwrap();
-			
-	        // outer circle        
-	        out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
+            let mouse = ctx.input().mouse();
+            let mut out = ctx.window_get_canvas().unwrap();
+
+            // outer circle
+            out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
             // circle buttons
             let step = (2f32 * ::std::f32::consts::PI) / (::std::cmp::max(1, icons.len()) as f32);
             let mut a_min = 0f32;
@@ -818,8 +833,8 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
         }
         {
             let mut out = ctx.window_get_canvas().unwrap();
-	        
-	        // inner circle
+
+            // inner circle
             let mut inner = NkRect::default();
             inner.x = bounds.x + bounds.w / 2f32 - bounds.w / 4f32;
             inner.y = bounds.y + bounds.h / 2f32 - bounds.h / 4f32;
@@ -844,8 +859,12 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     } else {
         ret = -2;
     }
-    ctx.style().window().set_spacing(NkVec2 { x: 4f32, y: 4f32 });
-    ctx.style().window().set_padding(NkVec2 { x: 8f32, y: 8f32 });
+    ctx.style()
+        .window()
+        .set_spacing(NkVec2 { x: 4f32, y: 4f32 });
+    ctx.style()
+        .window()
+        .set_padding(NkVec2 { x: 8f32, y: 8f32 });
     ctx.popup_end();
 
     ctx.style().window().set_fixed_background(background);
