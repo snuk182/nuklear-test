@@ -110,14 +110,12 @@ fn main() {
     let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, &event_loop);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
-
-
     let mut cfg = NkFontConfig::with_size(0.0);
     cfg.set_oversample_h(3);
     cfg.set_oversample_v(2);
     cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
     cfg.set_ttf(include_bytes!("../res/fonts/Roboto-Regular.ttf"));
-    cfg.set_ttf_data_owned_by_atlas(true);
+    //cfg.set_ttf_data_owned_by_atlas(true);
 
     let mut allo = NkAllocator::new_vec();
 
@@ -286,6 +284,8 @@ fn main() {
             }
         });
         ctx.input_end();
+        
+        if closed { break; }
 
         // println!("{:?}", event);
         let (w, h) = window.get_inner_size_pixels().unwrap();
@@ -316,6 +316,10 @@ fn main() {
 
         ctx.clear();
     }
+    
+    // TODO as we do not own the memory of `NkFont`'s, we cannot allow bck to drop it. 
+    // Need to find another non-owned wrapper for them, instead of Box.
+    ::std::mem::forget(media); 
 
     atlas.clear();
     ctx.free();
