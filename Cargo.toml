@@ -5,11 +5,11 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
 nuklear-rust = {version = "~0.3", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.4"
+nuklear-backend-gfx = "~0.5"
 gfx_device_dx11 = "~0.6"
 gfx_window_dxgi = "~0.7"
 winit = "~0.5"
-gfx = "~0.15"
+gfx = "~0.16"
 image = "~0.12"
 
 [[bin]]

@@ -323,6 +323,10 @@ fn main() {
         ctx.clear();
     }
 
+    // TODO as we do not own the memory of `NkFont`'s, we cannot allow bck to drop it. 
+    // Need to find another non-owned wrapper for them, instead of Box.
+    ::std::mem::forget(media); 
+
     atlas.clear();
     ctx.free();
 }
