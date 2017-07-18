@@ -11,7 +11,7 @@ extern crate glutin;
 use nuklear_rust::*;
 use nuklear_backend_gfx::{Drawer, GfxBackend};
 
-use glutin::GlRequest;
+use glutin::{GlContext, GlRequest};
 use gfx::Device as Gd;
 
 use std::fs::*;
@@ -102,12 +102,16 @@ fn main() {
     };
 
     let builder = glutin::WindowBuilder::new()
-        .with_depth_buffer(24)
-        .with_dimensions(1280, 800)
-        .with_gl(gl_version);
+	    .with_title("Nuklear Rust Gfx OpenGL Demo")
+        .with_dimensions(1280, 800);
 
-    let event_loop = glutin::EventsLoop::new();
-    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, &event_loop);
+    let context = glutin::ContextBuilder::new()
+	    .with_gl(gl_version)
+	    .with_vsync(true)
+	    .with_srgb(false)
+	    .with_depth_buffer(24);
+    let mut event_loop = glutin::EventsLoop::new();
+    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &event_loop);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
     let mut cfg = NkFontConfig::with_size(0.0);
@@ -234,53 +238,59 @@ fn main() {
     while !closed {
         ctx.input_begin();
         event_loop.poll_events(|event| {
-            let glutin::Event::WindowEvent { event, .. } = event;
-            match event {
-                glutin::WindowEvent::Closed => closed = true,
-                glutin::WindowEvent::ReceivedCharacter(c) => {
-                    ctx.input_unicode(c);
-                }
-                glutin::WindowEvent::KeyboardInput(s, _, k, _) => {
-                    if let Some(k) = k {
-                        let key = match k {
-                            glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-                            glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-                            glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-                            glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-                            glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-                            glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-                            _ => NkKey::NK_KEY_NONE,
-                        };
-
-                        ctx.input_key(key, s == glutin::ElementState::Pressed);
-                    }
-                }
-                glutin::WindowEvent::MouseMoved(x, y) => {
-                    mx = x;
-                    my = y;
-                    ctx.input_motion(x, y);
-                }
-                glutin::WindowEvent::MouseInput(s, b) => {
-                    let button = match b {
-                        glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-                        glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-                        glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-                        _ => NkButton::NK_BUTTON_MAX,
-                    };
-
-                    ctx.input_button(button, mx, my, s == glutin::ElementState::Pressed)
-                }
-                glutin::WindowEvent::MouseWheel(d, _) => {
-                    if let glutin::MouseScrollDelta::LineDelta(_, y) = d {
-                        ctx.input_scroll(y * 22f32);
-                    }
-                }
-                glutin::WindowEvent::Resized(_, _) => {
-                    let mut main_color = drawer.col.clone().unwrap();
-                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-                    drawer.col = Some(main_color);
-                }
-                _ => (),
+            if let glutin::Event::WindowEvent { event, .. } = event {
+	            match event {
+	                glutin::WindowEvent::Closed => closed = true,
+	                glutin::WindowEvent::ReceivedCharacter(c) => {
+	                    ctx.input_unicode(c);
+	                }
+	                glutin::WindowEvent::KeyboardInput{input: glutin::KeyboardInput {
+		                    state,
+		                    virtual_keycode,
+		                    ..
+		                },
+	               ..} => {
+	                    if let Some(k) = virtual_keycode {
+	                        let key = match k {
+	                            glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
+	                            glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
+	                            glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
+	                            glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
+	                            glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
+	                            glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
+	                            _ => NkKey::NK_KEY_NONE,
+	                        };
+	
+	                        ctx.input_key(key, state == glutin::ElementState::Pressed);
+	                    }
+	                }
+	                glutin::WindowEvent::MouseMoved{position: (x, y), ..} => {
+	                    mx = x as i32;
+	                    my = y as i32;
+	                    ctx.input_motion(x as i32, y as i32);
+	                }
+	                glutin::WindowEvent::MouseInput{state, button, ..} => {
+	                    let button = match button {
+	                        glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
+	                        glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
+	                        glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
+	                        _ => NkButton::NK_BUTTON_MAX,
+	                    };
+	
+	                    ctx.input_button(button, mx, my, state == glutin::ElementState::Pressed)
+	                }
+	                glutin::WindowEvent::MouseWheel{delta, ..} => {
+	                    if let glutin::MouseScrollDelta::LineDelta(_, y) = delta {
+	                        ctx.input_scroll(y * 22f32);
+	                    }
+	                }
+	                glutin::WindowEvent::Resized(_, _) => {
+	                    let mut main_color = drawer.col.clone().unwrap();
+	                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
+	                    drawer.col = Some(main_color);
+	                }
+	                _ => (),
+	            }
             }
         });
         ctx.input_end();

@@ -1,15 +1,15 @@
 [package]
 name = "nuklear-sample-extended"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
 nuklear-rust = {version = "~0.3", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.5"
+nuklear-backend-gfx = "~0.6"
 gfx_device_gl = "~0.14"
-gfx_window_glutin = "~0.16"
+gfx_window_glutin = "~0.17"
 gfx = "~0.16"
-glutin = "~0.8"
+glutin = "~0.9"
 image = "~0.12"
 
 [[bin]]
