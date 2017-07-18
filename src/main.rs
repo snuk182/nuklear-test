@@ -96,11 +96,13 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
 fn main() {
 	let mut fw = 1280;
 	let mut fh = 800;
+    let mut event_loop = winit::EventsLoop::new();
     let (mut window, mut device, mut factory, render_target) = gfx_window_dxgi::init::<RenderFormat>(
     	winit::WindowBuilder::new()
     	    .with_dimensions(fw, fh)
-    	    .with_title("dx11 window"))
-    .unwrap();
+    	    .with_title("Nuklear Rust Gfx DX11 Demo"),
+	    &event_loop
+    ).unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
     let mut cfg = NkFontConfig::with_size(0.0);
@@ -225,7 +227,7 @@ fn main() {
     config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
     
     let mut resize = None;
-
+	let mut closed = false;    
     'main: loop {
     	//not yet published
     	if let Some((width, height)) = resize {
@@ -239,60 +241,64 @@ fn main() {
         }
 
         ctx.input_begin();
-        for event in window.poll_events() {
-            // println!("{:?}", event);
-
-            match event {
-                winit::Event::Closed => break 'main,
-                winit::Event::ReceivedCharacter(c) => {
-                    ctx.input_unicode(c);
-                }
-                winit::Event::KeyboardInput(s, _, k) => {
-                    if let Some(k) = k {
-                        let key = match k {
-                            winit::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-                            winit::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-                            winit::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-                            winit::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-                            winit::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-                            winit::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-                            _ => NkKey::NK_KEY_NONE,
-                        };
-
-                        ctx.input_key(key, s == winit::ElementState::Pressed);
-                    }
-                }
-                winit::Event::MouseMoved(x, y) => {
-                    mx = x;
-                    my = y;
-                    ctx.input_motion(x, y);
-                }
-                winit::Event::MouseInput(s, b) => {
-                    let button = match b {
-                        winit::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-                        winit::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-                        winit::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-                        _ => NkButton::NK_BUTTON_MAX,
-                    };
-
-                    ctx.input_button(button, mx, my, s == winit::ElementState::Pressed)
-                }
-                winit::Event::MouseWheel(d, _) => {
-                    if let winit::MouseScrollDelta::LineDelta(_, y) = d {
-                        ctx.input_scroll(y * 22f32);
-                    }
-                }
-                winit::Event::Resized(w, h) => {
-                	resize = Some((w as u16, h as u16));
-                }
-                _ => (),
+        event_loop.poll_events(|event| {
+            if let winit::Event::WindowEvent { event, .. } = event {
+	            match event {
+	                winit::WindowEvent::Closed => closed = true,
+	                winit::WindowEvent::ReceivedCharacter(c) => {
+	                    ctx.input_unicode(c);
+	                }
+	                winit::WindowEvent::KeyboardInput{input: winit::KeyboardInput {
+		                    state,
+		                    virtual_keycode,
+		                    ..
+		                },
+	               ..} => {
+	                    if let Some(k) = virtual_keycode {
+	                        let key = match k {
+	                            winit::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
+	                            winit::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
+	                            winit::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
+	                            winit::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
+	                            winit::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
+	                            winit::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
+	                            _ => NkKey::NK_KEY_NONE,
+	                        };
+	
+	                        ctx.input_key(key, state == winit::ElementState::Pressed);
+	                    }
+	                }
+	                winit::WindowEvent::MouseMoved{position: (x, y), ..} => {
+	                    mx = x as i32;
+	                    my = y as i32;
+	                    ctx.input_motion(x as i32, y as i32);
+	                }
+	                winit::WindowEvent::MouseInput{state, button, ..} => {
+	                    let button = match button {
+	                        winit::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
+	                        winit::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
+	                        winit::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
+	                        _ => NkButton::NK_BUTTON_MAX,
+	                    };
+	
+	                    ctx.input_button(button, mx, my, state == winit::ElementState::Pressed)
+	                }
+	                winit::WindowEvent::MouseWheel{delta, ..} => {
+	                    if let winit::MouseScrollDelta::LineDelta(_, y) = delta {
+	                        ctx.input_scroll(y * 22f32);
+	                    }
+	                }
+	                winit::WindowEvent::Resized(w, h) => {
+	                    resize = Some((w as u16, h as u16));
+	                }
+	                _ => (),
+	            }
             }
-        }
+        });
         ctx.input_end();
         
-        // println!("{:?}", event);
-        //let (w, h) = window.get_inner_size_pixels().unwrap();
-        //let (fw, fh) = window.get_inner_size().unwrap();
+        if closed { break 'main; }
+        
         let scale = NkVec2 {
             x: 1.0,
             y: 1.0,
