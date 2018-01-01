@@ -243,7 +243,7 @@ fn main() {
 	                glutin::WindowEvent::Closed => closed = true,
 	                glutin::WindowEvent::ReceivedCharacter(c) => {
 	                    ctx.input_unicode(c);
-	                }
+	                },
 	                glutin::WindowEvent::KeyboardInput{input: glutin::KeyboardInput {
 		                    state,
 		                    virtual_keycode,
@@ -263,12 +263,12 @@ fn main() {
 	
 	                        ctx.input_key(key, state == glutin::ElementState::Pressed);
 	                    }
-	                }
-	                glutin::WindowEvent::MouseMoved{position: (x, y), ..} => {
+	                },
+	                glutin::WindowEvent::CursorMoved{position: (x, y), ..} => {
 	                    mx = x as i32;
 	                    my = y as i32;
 	                    ctx.input_motion(x as i32, y as i32);
-	                }
+	                },
 	                glutin::WindowEvent::MouseInput{state, button, ..} => {
 	                    let button = match button {
 	                        glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
@@ -278,17 +278,17 @@ fn main() {
 	                    };
 	
 	                    ctx.input_button(button, mx, my, state == glutin::ElementState::Pressed)
-	                }
+	                },
 	                glutin::WindowEvent::MouseWheel{delta, ..} => {
 	                    if let glutin::MouseScrollDelta::LineDelta(_, y) = delta {
 	                        ctx.input_scroll(y * 22f32);
 	                    }
-	                }
+	                },
 	                glutin::WindowEvent::Resized(_, _) => {
 	                    let mut main_color = drawer.col.clone().unwrap();
 	                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
 	                    drawer.col = Some(main_color);
-	                }
+	                },
 	                _ => (),
 	            }
             }
@@ -298,11 +298,11 @@ fn main() {
         if closed { break; }
 
         // println!("{:?}", event);
-        let (w, h) = window.get_inner_size_pixels().unwrap();
         let (fw, fh) = window.get_inner_size().unwrap();
+        let scale = window.hidpi_factor();
         let scale = NkVec2 {
-            x: fw as f32 / w as f32,
-            y: fh as f32 / h as f32,
+            x: scale,
+            y: scale,
         };
 
         basic_demo(&mut ctx, &mut media, &mut basic_state);
@@ -784,7 +784,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
 
         {
             let mouse = ctx.input().mouse();
-            let mut out = ctx.window_get_canvas().unwrap();
+            let out = ctx.window_get_canvas().unwrap();
 
             // outer circle
             out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
@@ -846,7 +846,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             }
         }
         {
-            let mut out = ctx.window_get_canvas().unwrap();
+            let out = ctx.window_get_canvas().unwrap();
 
             // inner circle
             let mut inner = NkRect::default();
