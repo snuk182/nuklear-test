@@ -268,7 +268,7 @@ fn main() {
 	                        ctx.input_key(key, state == winit::ElementState::Pressed);
 	                    }
 	                }
-	                winit::WindowEvent::MouseMoved{position: (x, y), ..} => {
+	                winit::WindowEvent::CursorMoved{position: (x, y), ..} => {
 	                    mx = x as i32;
 	                    my = y as i32;
 	                    ctx.input_motion(x as i32, y as i32);
@@ -773,7 +773,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
 
         {
         	let mouse = ctx.input().mouse();
-			let mut out = ctx.window_get_canvas().unwrap();
+			let out = ctx.window_get_canvas().unwrap();
 			
 	        // outer circle        
 	        out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
@@ -835,7 +835,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             }
         }
         {
-            let mut out = ctx.window_get_canvas().unwrap();
+            let out = ctx.window_get_canvas().unwrap();
 	        
 	        // inner circle
             let mut inner = NkRect::default();
