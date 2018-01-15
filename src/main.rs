@@ -54,12 +54,13 @@ struct GridState {
 
 #[allow(dead_code)]
 struct Media {
-    font_14: Box<NkFont>,
-    font_18: Box<NkFont>,
-    font_20: Box<NkFont>,
-    font_22: Box<NkFont>,
+    font_14: NkFontID,
+    font_18: NkFontID,
+    font_20: NkFontID,
+    font_22: NkFontID,
 
     font_tex: NkHandle,
+    font_atlas: NkFontAtlas,
 
     unchecked: NkImage,
     checked: NkImage,
@@ -102,14 +103,14 @@ fn main() {
     };
 
     let builder = glutin::WindowBuilder::new()
-	    .with_title("Nuklear Rust Gfx OpenGL Demo")
+        .with_title("Nuklear Rust Gfx OpenGL Demo")
         .with_dimensions(1280, 800);
 
     let context = glutin::ContextBuilder::new()
-	    .with_gl(gl_version)
-	    .with_vsync(true)
-	    .with_srgb(false)
-	    .with_depth_buffer(24);
+        .with_gl(gl_version)
+        .with_vsync(true)
+        .with_srgb(false)
+        .with_depth_buffer(24);
     let mut event_loop = glutin::EventsLoop::new();
     let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &event_loop);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
@@ -151,7 +152,7 @@ fn main() {
 
     atlas.end(font_tex, Some(&mut null));
 
-    let mut ctx = NkContext::new(&mut allo, &font_14.handle());
+    let mut ctx = NkContext::new(&mut allo, &atlas.font(font_14).unwrap().handle());
 
     let mut media = Media {
         font_14: font_14,
@@ -160,6 +161,7 @@ fn main() {
         font_22: font_22,
 
         font_tex: font_tex,
+        font_atlas: atlas,
 
         unchecked: icon_load(&mut factory, &mut drawer, "res/icon/unchecked.png"),
         checked: icon_load(&mut factory, &mut drawer, "res/icon/checked.png"),
@@ -239,58 +241,58 @@ fn main() {
         ctx.input_begin();
         event_loop.poll_events(|event| {
             if let glutin::Event::WindowEvent { event, .. } = event {
-	            match event {
-	                glutin::WindowEvent::Closed => closed = true,
-	                glutin::WindowEvent::ReceivedCharacter(c) => {
-	                    ctx.input_unicode(c);
-	                },
-	                glutin::WindowEvent::KeyboardInput{input: glutin::KeyboardInput {
-		                    state,
-		                    virtual_keycode,
-		                    ..
-		                },
-	               ..} => {
-	                    if let Some(k) = virtual_keycode {
-	                        let key = match k {
-	                            glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-	                            glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-	                            glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-	                            glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-	                            glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-	                            glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-	                            _ => NkKey::NK_KEY_NONE,
-	                        };
-	
-	                        ctx.input_key(key, state == glutin::ElementState::Pressed);
-	                    }
-	                },
-	                glutin::WindowEvent::CursorMoved{position: (x, y), ..} => {
-	                    mx = x as i32;
-	                    my = y as i32;
-	                    ctx.input_motion(x as i32, y as i32);
-	                },
-	                glutin::WindowEvent::MouseInput{state, button, ..} => {
-	                    let button = match button {
-	                        glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-	                        glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-	                        glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-	                        _ => NkButton::NK_BUTTON_MAX,
-	                    };
-	
-	                    ctx.input_button(button, mx, my, state == glutin::ElementState::Pressed)
-	                },
-	                glutin::WindowEvent::MouseWheel{delta, ..} => {
-	                    if let glutin::MouseScrollDelta::LineDelta(_, y) = delta {
-	                        ctx.input_scroll(y * 22f32);
-	                    }
-	                },
-	                glutin::WindowEvent::Resized(_, _) => {
-	                    let mut main_color = drawer.col.clone().unwrap();
-	                    gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-	                    drawer.col = Some(main_color);
-	                },
-	                _ => (),
-	            }
+                match event {
+                    glutin::WindowEvent::Closed => closed = true,
+                    glutin::WindowEvent::ReceivedCharacter(c) => {
+                        ctx.input_unicode(c);
+                    },
+                    glutin::WindowEvent::KeyboardInput{input: glutin::KeyboardInput {
+                            state,
+                            virtual_keycode,
+                            ..
+                        },
+                   ..} => {
+                        if let Some(k) = virtual_keycode {
+                            let key = match k {
+                                glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
+                                glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
+                                glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
+                                glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
+                                glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
+                                glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
+                                _ => NkKey::NK_KEY_NONE,
+                            };
+    
+                            ctx.input_key(key, state == glutin::ElementState::Pressed);
+                        }
+                    },
+                    glutin::WindowEvent::CursorMoved{position: (x, y), ..} => {
+                        mx = x as i32;
+                        my = y as i32;
+                        ctx.input_motion(x as i32, y as i32);
+                    },
+                    glutin::WindowEvent::MouseInput{state, button, ..} => {
+                        let button = match button {
+                            glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
+                            glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
+                            glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
+                            _ => NkButton::NK_BUTTON_MAX,
+                        };
+    
+                        ctx.input_button(button, mx, my, state == glutin::ElementState::Pressed)
+                    },
+                    glutin::WindowEvent::MouseWheel{delta, ..} => {
+                        if let glutin::MouseScrollDelta::LineDelta(_, y) = delta {
+                            ctx.input_scroll(y * 22f32);
+                        }
+                    },
+                    glutin::WindowEvent::Resized(_, _) => {
+                        let mut main_color = drawer.col.clone().unwrap();
+                        gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
+                        drawer.col = Some(main_color);
+                    },
+                    _ => (),
+                }
             }
         });
         ctx.input_end();
@@ -326,24 +328,17 @@ fn main() {
 
         ctx.clear();
     }
-    
-    // TODO as we do not own the memory of `NkFont`'s, we cannot allow bck to drop it. 
-    // Need to find another non-owned wrapper for them, instead of Box.
-    ::std::mem::forget(media); 
-
-    atlas.clear();
-    ctx.free();
 }
 
 fn ui_header(ctx: &mut NkContext, media: &mut Media, title: &str) {
-    ctx.style_set_font(&media.font_18.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_18).unwrap().handle());
     ctx.layout_row_dynamic(20f32, 1);
     ctx.text(title, NkTextAlignment::NK_TEXT_LEFT as NkFlags);
 }
 
 const RATIO_W: [f32; 2] = [0.15f32, 0.85f32];
 fn ui_widget(ctx: &mut NkContext, media: &mut Media, height: f32) {
-    ctx.style_set_font(&media.font_22.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_22).unwrap().handle());
     ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_W);
     // ctx.layout_row_dynamic(height, 1);
     ctx.spacing(1);
@@ -351,7 +346,7 @@ fn ui_widget(ctx: &mut NkContext, media: &mut Media, height: f32) {
 
 const RATIO_WC: [f32; 3] = [0.15f32, 0.50f32, 0.35f32];
 fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
-    ctx.style_set_font(&media.font_22.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_22).unwrap().handle());
     ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
     ctx.spacing(1);
 }
@@ -361,7 +356,7 @@ fn free_type(_: &NkTextEdit, c: char) -> bool {
 }
 
 fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
-    ctx.style_set_font(&media.font_20.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_20).unwrap().handle());
     if ctx.begin(nk_string!("Grid Nuklear Rust!"),
                  NkRect {
                      x: 600f32,
@@ -370,7 +365,7 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
                      h: 250f32,
                  },
                  NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags | NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags) {
-        ctx.style_set_font(&media.font_18.handle());
+        ctx.style_set_font(&media.font_atlas.font(media.font_18).unwrap().handle());
         ctx.layout_row_dynamic(30f32, 2);
         ctx.text("Free type:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
         ctx.edit_string_custom_filter(NkEditType::NK_EDIT_FIELD as NkFlags,
@@ -412,11 +407,11 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
         }
     }
     ctx.end();
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_14).unwrap().handle());
 }
 
 fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) {
-    ctx.style_set_font(&media.font_20.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_20).unwrap().handle());
 
     ctx.begin(nk_string!("Button Nuklear Rust!"),
               NkRect {
@@ -564,7 +559,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     // ------------------------------------------------
     //                  CONTEXTUAL
     // ------------------------------------------------
-    ctx.style_set_font(&media.font_18.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_18).unwrap().handle());
     let bounds = ctx.window_get_bounds();
     if ctx.contextual_begin(NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
                             NkVec2 {
@@ -595,12 +590,12 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
         }
         ctx.contextual_end();
     }
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_14).unwrap().handle());
     ctx.end();
 }
 
 fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
-    ctx.style_set_font(&media.font_20.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_20).unwrap().handle());
     ctx.begin(nk_string!("Basic Nuklear Rust!"),
               NkRect {
                   x: 320f32,
@@ -729,7 +724,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
             state.piemenu_active = false;
         }
     }
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(&media.font_atlas.font(media.font_14).unwrap().handle());
     ctx.end();
 }
 

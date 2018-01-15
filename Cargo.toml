@@ -1,10 +1,10 @@
 [package]
 name = "nuklear-sample-extended"
-version = "0.2.3"
+version = "0.4"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "~0.3", features = ["rust_allocator"]}
+nuklear-rust = {version = "~0.4", features = ["rust_allocator"]}
 nuklear-backend-gfx = "~0.6"
 gfx_device_gl = "~0.15"
 gfx_window_glutin = "~0.20"
@@ -15,3 +15,7 @@ image = "~0.12"
 [[bin]]
 name = "t"
 path = "src/main.rs"
+
+[patch.crates-io]
+nuklear-rust = { path = "../nuklear-rust" }
+nuklear-backend-gfx = { path = "../nuklear-backend-gfx" }
