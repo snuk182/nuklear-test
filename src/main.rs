@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate nuklear_rust;
+extern crate nuklear;
 extern crate nuklear_backend_gfx;
 
 extern crate image;
@@ -8,7 +8,7 @@ extern crate gfx;
 extern crate gfx_window_glutin;
 extern crate glutin;
 
-use nuklear_rust::*;
+use nuklear::*;
 use nuklear_backend_gfx::{Drawer, GfxBackend};
 
 use glutin::{GlContext, GlRequest};
@@ -34,7 +34,7 @@ struct BasicState {
     selected_icon: usize,
     items: [&'static str; 3],
     piemenu_active: bool,
-    piemenu_pos: NkVec2,
+    piemenu_pos: Vec2,
 }
 
 struct ButtonState {
@@ -54,35 +54,35 @@ struct GridState {
 
 #[allow(dead_code)]
 struct Media {
-    font_14: NkFontID,
-    font_18: NkFontID,
-    font_20: NkFontID,
-    font_22: NkFontID,
+    font_14: FontID,
+    font_18: FontID,
+    font_20: FontID,
+    font_22: FontID,
 
-    font_tex: NkHandle,
-    font_atlas: NkFontAtlas,
+    font_tex: Handle,
+    font_atlas: FontAtlas,
 
-    unchecked: NkImage,
-    checked: NkImage,
-    rocket: NkImage,
-    cloud: NkImage,
-    pen: NkImage,
-    play: NkImage,
-    pause: NkImage,
-    stop: NkImage,
-    prev: NkImage,
-    next: NkImage,
-    tools: NkImage,
-    dir: NkImage,
-    copy: NkImage,
-    convert: NkImage,
-    del: NkImage,
-    edit: NkImage,
-    images: [NkImage; 9],
-    menu: [NkImage; 6],
+    unchecked: Image,
+    checked: Image,
+    rocket: Image,
+    cloud: Image,
+    pen: Image,
+    play: Image,
+    pause: Image,
+    stop: Image,
+    prev: Image,
+    next: Image,
+    tools: Image,
+    dir: Image,
+    copy: Image,
+    convert: Image,
+    del: Image,
+    edit: Image,
+    images: [Image; 9],
+    menu: [Image; 6],
 }
 
-fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> NkImage
+fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> Image
     where F: gfx::Factory<R>
 {
 
@@ -93,7 +93,7 @@ fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, file
     let (w, h) = img.dimensions();
     let mut hnd = drawer.add_texture(factory, &img, w, h);
 
-    NkImage::with_id(hnd.id().unwrap())
+    Image::with_id(hnd.id().unwrap())
 }
 
 fn main() {
@@ -115,24 +115,24 @@ fn main() {
     let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &event_loop);
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
-    let mut cfg = NkFontConfig::with_size(0.0);
+    let mut cfg = FontConfig::with_size(0.0);
     cfg.set_oversample_h(3);
     cfg.set_oversample_v(2);
-    cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
+    cfg.set_glyph_range(nuklear::font_cyrillic_glyph_ranges());
     cfg.set_ttf(include_bytes!("../res/fonts/Roboto-Regular.ttf"));
     //cfg.set_ttf_data_owned_by_atlas(true);
 
-    let mut allo = NkAllocator::new_vec();
+    let mut allo = Allocator::new_vec();
 
     let mut drawer = Drawer::new(&mut factory,
                                  main_color,
                                  36,
                                  MAX_VERTEX_MEMORY,
                                  MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
+                                 Buffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
                                  GfxBackend::OpenGlsl150);
 
-    let mut atlas = NkFontAtlas::new(&mut allo);
+    let mut atlas = FontAtlas::new(&mut allo);
 
     cfg.set_size(14f32);
     let font_14 = atlas.add_font_with_config(&cfg).unwrap();
@@ -144,15 +144,15 @@ fn main() {
     let font_22 = atlas.add_font_with_config(&cfg).unwrap();
 
     let font_tex = {
-        let (b, w, h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
+        let (b, w, h) = atlas.bake(FontAtlasFormat::NK_FONT_ATLAS_RGBA32);
         drawer.add_texture(&mut factory, b, w, h)
     };
 
-    let mut null = NkDrawNullTexture::default();
+    let mut null = DrawNullTexture::default();
 
     atlas.end(font_tex, Some(&mut null));
 
-    let mut ctx = NkContext::new(&mut allo, &atlas.font(font_14).unwrap().handle());
+    let mut ctx = Context::new(&mut allo, &atlas.font(font_14).unwrap().handle());
 
     let mut media = Media {
         font_14: font_14,
@@ -206,7 +206,7 @@ fn main() {
         selected_icon: 0,
         items: ["Item 0", "item 1", "item 2"],
         piemenu_active: false,
-        piemenu_pos: NkVec2::default(),
+        piemenu_pos: Vec2::default(),
     };
 
     let mut button_state = ButtonState {
@@ -227,14 +227,14 @@ fn main() {
     let mut mx = 0;
     let mut my = 0;
 
-    let mut config = NkConvertConfig::default();
+    let mut config = ConvertConfig::default();
     config.set_null(null.clone());
     config.set_circle_segment_count(22);
     config.set_curve_segment_count(22);
     config.set_arc_segment_count(22);
     config.set_global_alpha(1.0f32);
-    config.set_shape_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
-    config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
+    config.set_shape_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
+    config.set_line_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
 
     let mut closed = false;
     while !closed {
@@ -254,13 +254,13 @@ fn main() {
                    ..} => {
                         if let Some(k) = virtual_keycode {
                             let key = match k {
-                                glutin::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-                                glutin::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-                                glutin::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-                                glutin::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-                                glutin::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-                                glutin::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-                                _ => NkKey::NK_KEY_NONE,
+                                glutin::VirtualKeyCode::Back => Key::NK_KEY_BACKSPACE,
+                                glutin::VirtualKeyCode::Delete => Key::NK_KEY_DEL,
+                                glutin::VirtualKeyCode::Up => Key::NK_KEY_UP,
+                                glutin::VirtualKeyCode::Down => Key::NK_KEY_DOWN,
+                                glutin::VirtualKeyCode::Left => Key::NK_KEY_LEFT,
+                                glutin::VirtualKeyCode::Right => Key::NK_KEY_RIGHT,
+                                _ => Key::NK_KEY_NONE,
                             };
     
                             ctx.input_key(key, state == glutin::ElementState::Pressed);
@@ -273,10 +273,10 @@ fn main() {
                     },
                     glutin::WindowEvent::MouseInput{state, button, ..} => {
                         let button = match button {
-                            glutin::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-                            glutin::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-                            glutin::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-                            _ => NkButton::NK_BUTTON_MAX,
+                            glutin::MouseButton::Left => Button::NK_BUTTON_LEFT,
+                            glutin::MouseButton::Middle => Button::NK_BUTTON_MIDDLE,
+                            glutin::MouseButton::Right => Button::NK_BUTTON_RIGHT,
+                            _ => Button::NK_BUTTON_MAX,
                         };
     
                         ctx.input_button(button, mx, my, state == glutin::ElementState::Pressed)
@@ -302,7 +302,7 @@ fn main() {
         // println!("{:?}", event);
         let (fw, fh) = window.get_inner_size().unwrap();
         let scale = window.hidpi_factor();
-        let scale = NkVec2 {
+        let scale = Vec2 {
             x: scale,
             y: scale,
         };
@@ -330,76 +330,76 @@ fn main() {
     }
 }
 
-fn ui_header(ctx: &mut NkContext, media: &mut Media, title: &str) {
+fn ui_header(ctx: &mut Context, media: &mut Media, title: &str) {
     ctx.style_set_font(&media.font_atlas.font(media.font_18).unwrap().handle());
     ctx.layout_row_dynamic(20f32, 1);
-    ctx.text(title, NkTextAlignment::NK_TEXT_LEFT as NkFlags);
+    ctx.text(title, TextAlignment::NK_TEXT_LEFT as Flags);
 }
 
 const RATIO_W: [f32; 2] = [0.15f32, 0.85f32];
-fn ui_widget(ctx: &mut NkContext, media: &mut Media, height: f32) {
+fn ui_widget(ctx: &mut Context, media: &mut Media, height: f32) {
     ctx.style_set_font(&media.font_atlas.font(media.font_22).unwrap().handle());
-    ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_W);
+    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_W);
     // ctx.layout_row_dynamic(height, 1);
     ctx.spacing(1);
 }
 
 const RATIO_WC: [f32; 3] = [0.15f32, 0.50f32, 0.35f32];
-fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
+fn ui_widget_centered(ctx: &mut Context, media: &mut Media, height: f32) {
     ctx.style_set_font(&media.font_atlas.font(media.font_22).unwrap().handle());
-    ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
+    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
     ctx.spacing(1);
 }
 
-fn free_type(_: &NkTextEdit, c: char) -> bool {
+fn free_type(_: &TextEdit, c: char) -> bool {
     (c > '\u{0030}')
 }
 
-fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
+fn grid_demo(ctx: &mut Context, media: &mut Media, state: &mut GridState) {
     ctx.style_set_font(&media.font_atlas.font(media.font_20).unwrap().handle());
     if ctx.begin(nk_string!("Grid Nuklear Rust!"),
-                 NkRect {
+                 Rect {
                      x: 600f32,
                      y: 350f32,
                      w: 275f32,
                      h: 250f32,
                  },
-                 NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags | NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags) {
+                 PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags | PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags) {
         ctx.style_set_font(&media.font_atlas.font(media.font_18).unwrap().handle());
         ctx.layout_row_dynamic(30f32, 2);
-        ctx.text("Free type:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string_custom_filter(NkEditType::NK_EDIT_FIELD as NkFlags,
+        ctx.text("Free type:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string_custom_filter(EditType::NK_EDIT_FIELD as Flags,
                                       &mut state.text[3],
                                       &mut state.text_len[3],
                                       free_type);
-        ctx.text("Floating point:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags,
+        ctx.text("Floating point:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags,
                         &mut state.text[0],
                         &mut state.text_len[0],
                         NK_FILTER_FLOAT);
-        ctx.text("Hexadecimal:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags,
+        ctx.text("Hexadecimal:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags,
                         &mut state.text[1],
                         &mut state.text_len[1],
                         NK_FILTER_HEX);
-        ctx.text("Binary:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags,
+        ctx.text("Binary:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags,
                         &mut state.text[2],
                         &mut state.text_len[2],
                         NK_FILTER_BINARY);
-        ctx.text("Checkbox:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.text("Checkbox:", TextAlignment::NK_TEXT_RIGHT as Flags);
         ctx.checkbox_text("Check me", &mut state.check);
-        ctx.text("Combobox:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.text("Combobox:", TextAlignment::NK_TEXT_RIGHT as Flags);
 
         let widget_width = ctx.widget_width();
         if ctx.combo_begin_text(state.items[state.selected_item],
-                                NkVec2 {
+                                Vec2 {
                                     x: widget_width,
                                     y: 200f32,
                                 }) {
             ctx.layout_row_dynamic(25f32, 1);
             for i in 0..state.items.len() {
-                if ctx.combo_item_text(state.items[i], NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
                     state.selected_item = i;
                 }
             }
@@ -410,17 +410,17 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
     ctx.style_set_font(&media.font_atlas.font(media.font_14).unwrap().handle());
 }
 
-fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) {
+fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     ctx.style_set_font(&media.font_atlas.font(media.font_20).unwrap().handle());
 
     ctx.begin(nk_string!("Button Nuklear Rust!"),
-              NkRect {
+              Rect {
                   x: 50f32,
                   y: 50f32,
                   w: 255f32,
                   h: 610f32,
               },
-              NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags);
+              PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags);
 
     // ------------------------------------------------
     //                  MENU
@@ -431,7 +431,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
         ctx.layout_row_static(40f32, 40, 4);
         if ctx.menu_begin_image(nk_string!("Music"),
                                 media.play.clone(),
-                                NkVec2 {
+                                Vec2 {
                                     x: 110f32,
                                     y: 120f32,
                                 }) {
@@ -439,19 +439,19 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
             ctx.layout_row_dynamic(25f32, 1);
             ctx.menu_item_image_text(media.play.clone(),
                                      "Play",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+                                     TextAlignment::NK_TEXT_RIGHT as Flags);
             ctx.menu_item_image_text(media.stop.clone(),
                                      "Stop",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+                                     TextAlignment::NK_TEXT_RIGHT as Flags);
             ctx.menu_item_image_text(media.pause.clone(),
                                      "Pause",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+                                     TextAlignment::NK_TEXT_RIGHT as Flags);
             ctx.menu_item_image_text(media.next.clone(),
                                      "Next",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+                                     TextAlignment::NK_TEXT_RIGHT as Flags);
             ctx.menu_item_image_text(media.prev.clone(),
                                      "Prev",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+                                     TextAlignment::NK_TEXT_RIGHT as Flags);
             ctx.menu_end();
         }
         ctx.button_image(media.tools.clone());
@@ -471,7 +471,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     ui_widget(ctx, media, 35f32);
     if ctx.button_image_text(media.rocket.clone(),
                              "Styled",
-                             NkTextAlignment::NK_TEXT_CENTERED as NkFlags) {
+                             TextAlignment::NK_TEXT_CENTERED as Flags) {
         println!("rocket!");
     }
 
@@ -495,7 +495,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
                                  media.unchecked.clone()
                              },
                              "Toggle",
-                             NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                             TextAlignment::NK_TEXT_LEFT as Flags) {
         state.toggle0 = !state.toggle0;
     }
 
@@ -506,7 +506,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
                                  media.unchecked.clone()
                              },
                              "Toggle",
-                             NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                             TextAlignment::NK_TEXT_LEFT as Flags) {
         state.toggle1 = !state.toggle1;
     }
 
@@ -517,7 +517,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
                                  media.unchecked.clone()
                              },
                              "Toggle",
-                             NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                             TextAlignment::NK_TEXT_LEFT as Flags) {
         state.toggle2 = !state.toggle2;
     }
 
@@ -527,32 +527,32 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     ui_header(ctx, media, "Radio buttons");
     ui_widget(ctx, media, 35f32);
     if ctx.button_symbol_text(if state.option == 0 {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE
+                                  SymbolType::NK_SYMBOL_CIRCLE_OUTLINE
                               } else {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_SOLID
+                                  SymbolType::NK_SYMBOL_CIRCLE_SOLID
                               },
                               "Select 1",
-                              NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                              TextAlignment::NK_TEXT_LEFT as Flags) {
         state.option = 0;
     }
     ui_widget(ctx, media, 35f32);
     if ctx.button_symbol_text(if state.option == 1 {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE
+                                  SymbolType::NK_SYMBOL_CIRCLE_OUTLINE
                               } else {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_SOLID
+                                  SymbolType::NK_SYMBOL_CIRCLE_SOLID
                               },
                               "Select 2",
-                              NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                              TextAlignment::NK_TEXT_LEFT as Flags) {
         state.option = 1;
     }
     ui_widget(ctx, media, 35f32);
     if ctx.button_symbol_text(if state.option == 2 {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE
+                                  SymbolType::NK_SYMBOL_CIRCLE_OUTLINE
                               } else {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_SOLID
+                                  SymbolType::NK_SYMBOL_CIRCLE_SOLID
                               },
                               "Select 3",
-                              NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                              TextAlignment::NK_TEXT_LEFT as Flags) {
         state.option = 2;
     }
 
@@ -561,8 +561,8 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     // ------------------------------------------------
     ctx.style_set_font(&media.font_atlas.font(media.font_18).unwrap().handle());
     let bounds = ctx.window_get_bounds();
-    if ctx.contextual_begin(NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
-                            NkVec2 {
+    if ctx.contextual_begin(PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+                            Vec2 {
                                 x: 150f32,
                                 y: 300f32,
                             },
@@ -570,22 +570,22 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
         ctx.layout_row_dynamic(30f32, 1);
         if ctx.contextual_item_image_text(media.copy.clone(),
                                           "Clone",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+                                          TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed clone!");
         }
         if ctx.contextual_item_image_text(media.del.clone(),
                                           "Delete",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+                                          TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed delete!");
         }
         if ctx.contextual_item_image_text(media.convert.clone(),
                                           "Convert",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+                                          TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed convert!");
         }
         if ctx.contextual_item_image_text(media.edit.clone(),
                                           "Edit",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+                                          TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed edit!");
         }
         ctx.contextual_end();
@@ -594,16 +594,16 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     ctx.end();
 }
 
-fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
+fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     ctx.style_set_font(&media.font_atlas.font(media.font_20).unwrap().handle());
     ctx.begin(nk_string!("Basic Nuklear Rust!"),
-              NkRect {
+              Rect {
                   x: 320f32,
                   y: 50f32,
                   w: 275f32,
                   h: 610f32,
               },
-              NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags);
+              PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags);
 
     // ------------------------------------------------
     //                  POPUP BUTTON
@@ -614,7 +614,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     ui_widget(ctx, media, 35f32);
     if ctx.button_image_text(media.dir.clone(),
                              "Images",
-                             NkTextAlignment::NK_TEXT_CENTERED as NkFlags) {
+                             TextAlignment::NK_TEXT_CENTERED as Flags) {
         state.image_active = !state.image_active;
     }
 
@@ -629,10 +629,10 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     //                  IMAGE POPUP
     // ------------------------------------------------
     if state.image_active {
-        if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
+        if ctx.popup_begin(PopupType::NK_POPUP_STATIC,
                            nk_string!("Image Popup"),
                            0,
-                           NkRect {
+                           Rect {
                                x: 265f32,
                                y: 0f32,
                                w: 320f32,
@@ -656,13 +656,13 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     ui_widget(ctx, media, 40f32);
     let widget_width = ctx.widget_width();
     if ctx.combo_begin_text(state.items[state.selected_item],
-                            NkVec2 {
+                            Vec2 {
                                 x: widget_width,
                                 y: 200f32,
                             }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_text(state.items[i], NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+            if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
                 state.selected_item = i;
             }
         }
@@ -673,7 +673,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     let widget_width = ctx.widget_width();
     if ctx.combo_begin_image_text(state.items[state.selected_icon],
                                   media.images[state.selected_icon].clone(),
-                                  NkVec2 {
+                                  Vec2 {
                                       x: widget_width,
                                       y: 200f32,
                                   }) {
@@ -681,7 +681,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
         for i in 0..3 {
             if ctx.combo_item_image_text(media.images[i].clone(),
                                          state.items[i],
-                                         NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+                                         TextAlignment::NK_TEXT_RIGHT as Flags) {
                 state.selected_icon = i;
             }
         }
@@ -709,7 +709,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     // ------------------------------------------------
     let bounds = ctx.window_get_bounds();
     if ctx.input()
-           .is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, bounds, true) {
+           .is_mouse_click_down_in_rect(Button::NK_BUTTON_RIGHT, bounds, true) {
         state.piemenu_pos = ctx.input().mouse().pos().clone();
         state.piemenu_active = true;
     }
@@ -733,10 +733,10 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
 //                          CUSTOM WIDGET
 //
 // ===============================================================
-fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) -> i32 {
+fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32 {
     let mut ret = -1i32;
     let mut total_space;
-    let mut bounds = NkRect::default();
+    let mut bounds = Rect::default();
     let active_item;
 
     // pie menu popup
@@ -744,7 +744,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     let background = ctx.style().window().fixed_background();
     ctx.style()
         .window()
-        .set_fixed_background(NkStyleItem::hide());
+        .set_fixed_background(StyleItem::hide());
     ctx.style()
         .window()
         .set_border_color(color_rgba(0, 0, 0, 0));
@@ -752,15 +752,15 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     total_space = ctx.window_get_content_region();
     ctx.style()
         .window()
-        .set_spacing(NkVec2 { x: 0f32, y: 0f32 });
+        .set_spacing(Vec2 { x: 0f32, y: 0f32 });
     ctx.style()
         .window()
-        .set_padding(NkVec2 { x: 0f32, y: 0f32 });
+        .set_padding(Vec2 { x: 0f32, y: 0f32 });
 
-    if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
+    if ctx.popup_begin(PopupType::NK_POPUP_STATIC,
                        nk_string!("piemenu"),
-                       NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
-                       NkRect {
+                       PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+                       Rect {
                            x: pos.x - total_space.x - radius,
                            y: pos.y - radius - total_space.y,
                            w: 2f32 * radius,
@@ -770,10 +770,10 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
         total_space = ctx.window_get_content_region();
         ctx.style()
             .window()
-            .set_spacing(NkVec2 { x: 4f32, y: 4f32 });
+            .set_spacing(Vec2 { x: 4f32, y: 4f32 });
         ctx.style()
             .window()
-            .set_padding(NkVec2 { x: 8f32, y: 8f32 });
+            .set_padding(Vec2 { x: 8f32, y: 8f32 });
         ctx.layout_row_dynamic(total_space.h, 1);
         ctx.widget(&mut bounds);
 
@@ -782,17 +782,17 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             let out = ctx.window_get_canvas().unwrap();
 
             // outer circle
-            out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
+            out.fill_circle(bounds, nuklear::color_rgb(50, 50, 50));
             // circle buttons
             let step = (2f32 * ::std::f32::consts::PI) / (::std::cmp::max(1, icons.len()) as f32);
             let mut a_min = 0f32;
             let mut a_max = step;
 
-            let center = NkVec2 {
+            let center = Vec2 {
                 x: bounds.x + bounds.w / 2.0f32,
                 y: bounds.y + bounds.h / 2.0f32,
             };
-            let drag = NkVec2 {
+            let drag = Vec2 {
                 x: mouse.pos().x - center.x,
                 y: mouse.pos().y - center.y,
             };
@@ -803,16 +803,16 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             active_item = (angle / step) as usize;
 
             for i in 0..icons.len() {
-                let mut content = NkRect::default();
+                let mut content = Rect::default();
                 out.fill_arc(center.x,
                              center.y,
                              (bounds.w / 2.0f32),
                              a_min,
                              a_max,
                              if active_item == i {
-                                 nuklear_rust::color_rgb(45, 100, 255)
+                                 nuklear::color_rgb(45, 100, 255)
                              } else {
-                                 nuklear_rust::color_rgb(60, 60, 60)
+                                 nuklear::color_rgb(60, 60, 60)
                              });
 
                 // separator line
@@ -825,7 +825,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
                                 center.x + dx,
                                 center.y + dy,
                                 1.0f32,
-                                nuklear_rust::color_rgb(50, 50, 50));
+                                nuklear::color_rgb(50, 50, 50));
 
                 // button content
                 let a = a_min + (a_max - a_min) / 2.0f32;
@@ -835,7 +835,7 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
                 content.h = 30f32;
                 content.x = center.x + ((rx * a.cos() - ry * a.sin()) - content.w / 2.0f32);
                 content.y = center.y + (rx * a.sin() + ry * a.cos() - content.h / 2.0f32);
-                out.draw_image(content, &icons[i], nuklear_rust::color_rgb(255, 255, 255));
+                out.draw_image(content, &icons[i], nuklear::color_rgb(255, 255, 255));
                 a_min = a_max;
                 a_max += step;
             }
@@ -844,12 +844,12 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             let out = ctx.window_get_canvas().unwrap();
 
             // inner circle
-            let mut inner = NkRect::default();
+            let mut inner = Rect::default();
             inner.x = bounds.x + bounds.w / 2f32 - bounds.w / 4f32;
             inner.y = bounds.y + bounds.h / 2f32 - bounds.h / 4f32;
             inner.w = bounds.w / 2f32;
             inner.h = bounds.h / 2f32;
-            out.fill_circle(inner, nuklear_rust::color_rgb(45, 45, 45));
+            out.fill_circle(inner, nuklear::color_rgb(45, 45, 45));
 
             // active icon content
             bounds.w = inner.w / 2.0f32;
@@ -858,10 +858,10 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
             bounds.y = inner.y + inner.h / 2f32 - bounds.h / 2f32;
             out.draw_image(bounds,
                            &icons[active_item],
-                           nuklear_rust::color_rgb(255, 255, 255));
+                           nuklear::color_rgb(255, 255, 255));
         }
         ctx.layout_space_end();
-        if !ctx.input().is_mouse_down(NkButton::NK_BUTTON_RIGHT) {
+        if !ctx.input().is_mouse_down(Button::NK_BUTTON_RIGHT) {
             ctx.popup_close();
             ret = active_item as i32;
         }
@@ -870,10 +870,10 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
     }
     ctx.style()
         .window()
-        .set_spacing(NkVec2 { x: 4f32, y: 4f32 });
+        .set_spacing(Vec2 { x: 4f32, y: 4f32 });
     ctx.style()
         .window()
-        .set_padding(NkVec2 { x: 8f32, y: 8f32 });
+        .set_padding(Vec2 { x: 8f32, y: 8f32 });
     ctx.popup_end();
 
     ctx.style().window().set_fixed_background(background);
