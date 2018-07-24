@@ -1,16 +1,20 @@
+#![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names))]
+#![cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
+#![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
+
 #[macro_use]
-extern crate nuklear_rust;
+extern crate nuklear;
 extern crate nuklear_backend_gfx;
 
 extern crate image;
 
 extern crate gfx;
-extern crate gfx_window_dxgi;
 extern crate gfx_device_dx11;
+extern crate gfx_window_dxgi;
 
 extern crate winit;
 
-use nuklear_rust::*;
+use nuklear::*;
 use nuklear_backend_gfx::{Drawer, GfxBackend};
 
 use gfx::Device as Gd;
@@ -34,7 +38,7 @@ struct BasicState {
     selected_icon: usize,
     items: [&'static str; 3],
     piemenu_active: bool,
-    piemenu_pos: NkVec2,
+    piemenu_pos: Vec2,
 }
 
 struct ButtonState {
@@ -54,98 +58,91 @@ struct GridState {
 
 #[allow(dead_code)]
 struct Media {
-    font_14: Box<NkFont>,
-    font_18: Box<NkFont>,
-    font_20: Box<NkFont>,
-    font_22: Box<NkFont>,
+    font_atlas: FontAtlas,
+    font_14: FontID,
+    font_18: FontID,
+    font_20: FontID,
+    font_22: FontID,
 
-    font_tex: NkHandle,
+    font_tex: Handle,
 
-    unchecked: NkImage,
-    checked: NkImage,
-    rocket: NkImage,
-    cloud: NkImage,
-    pen: NkImage,
-    play: NkImage,
-    pause: NkImage,
-    stop: NkImage,
-    prev: NkImage,
-    next: NkImage,
-    tools: NkImage,
-    dir: NkImage,
-    copy: NkImage,
-    convert: NkImage,
-    del: NkImage,
-    edit: NkImage,
-    images: [NkImage; 9],
-    menu: [NkImage; 6],
+    unchecked: Image,
+    checked: Image,
+    rocket: Image,
+    cloud: Image,
+    pen: Image,
+    play: Image,
+    pause: Image,
+    stop: Image,
+    prev: Image,
+    next: Image,
+    tools: Image,
+    dir: Image,
+    copy: Image,
+    convert: Image,
+    del: Image,
+    edit: Image,
+    images: [Image; 9],
+    menu: [Image; 6],
 }
 
-fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> NkImage
-    where F: gfx::Factory<R>
+fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> Image
+where
+    F: gfx::Factory<R>,
 {
-
     let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
 
     let (w, h) = img.dimensions();
     let mut hnd = drawer.add_texture(factory, &img, w, h);
 
-    NkImage::with_id(hnd.id().unwrap())
+    Image::with_id(hnd.id().unwrap())
 }
 
 fn main() {
-	let mut fw = 1280;
-	let mut fh = 800;
+    let mut fw = 1280;
+    let mut fh = 800;
     let mut event_loop = winit::EventsLoop::new();
-    let (mut window, mut device, mut factory, render_target) = gfx_window_dxgi::init::<RenderFormat>(
-    	winit::WindowBuilder::new()
-    	    .with_dimensions(fw, fh)
-    	    .with_title("Nuklear Rust Gfx DX11 Demo"),
-	    &event_loop
-    ).unwrap();
+    let (mut window, mut device, mut factory, render_target) = gfx_window_dxgi::init::<RenderFormat>(winit::WindowBuilder::new().with_dimensions(fw, fh).with_title("Nuklear Rust Gfx DX11 Demo"), &event_loop).unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
-    let mut cfg = NkFontConfig::with_size(0.0);
+    let mut cfg = FontConfig::with_size(0.0);
     cfg.set_oversample_h(3);
     cfg.set_oversample_v(2);
-    cfg.set_glyph_range(nuklear_rust::font_cyrillic_glyph_ranges());
+    cfg.set_glyph_range(nuklear::font_cyrillic_glyph_ranges());
     cfg.set_ttf(include_bytes!("../res/fonts/Roboto-Regular.ttf"));
-    cfg.set_ttf_data_owned_by_atlas(true);
 
-    let mut allo = NkAllocator::new_vec();
+    let mut allo = Allocator::new_vec();
 
-    let mut drawer = Drawer::new(&mut factory,
-                                 render_target,
-                                 36,
-                                 MAX_VERTEX_MEMORY,
-                                 MAX_ELEMENT_MEMORY,
-                                 NkBuffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
-                                 GfxBackend::DX11Hlsl
-    );
-    
-    let mut atlas = NkFontAtlas::new(&mut allo);
+    let mut drawer = Drawer::new(&mut factory, render_target, 36, MAX_VERTEX_MEMORY, MAX_ELEMENT_MEMORY, Buffer::with_size(&mut allo, MAX_COMMANDS_MEMORY), GfxBackend::DX11Hlsl);
 
+    let mut atlas = FontAtlas::new(&mut allo);
+
+    cfg.set_ttf_data_owned_by_atlas(false);
     cfg.set_size(14f32);
     let font_14 = atlas.add_font_with_config(&cfg).unwrap();
+    cfg.set_ttf_data_owned_by_atlas(false);
     cfg.set_size(18f32);
     let font_18 = atlas.add_font_with_config(&cfg).unwrap();
+    cfg.set_ttf_data_owned_by_atlas(false);
     cfg.set_size(20f32);
     let font_20 = atlas.add_font_with_config(&cfg).unwrap();
+    cfg.set_ttf_data_owned_by_atlas(false);
     cfg.set_size(22f32);
     let font_22 = atlas.add_font_with_config(&cfg).unwrap();
 
     let font_tex = {
-        let (b, w, h) = atlas.bake(NkFontAtlasFormat::NK_FONT_ATLAS_RGBA32);
+        let (b, w, h) = atlas.bake(FontAtlasFormat::NK_FONT_ATLAS_RGBA32);
         drawer.add_texture(&mut factory, b, w, h)
     };
 
-    let mut null = NkDrawNullTexture::default();
+    let mut null = DrawNullTexture::default();
 
     atlas.end(font_tex, Some(&mut null));
 
-    let mut ctx = NkContext::new(&mut allo, &font_14.handle());
+    let mut ctx = Context::new(&mut allo, atlas.font(font_14).unwrap().handle());
 
     let mut media = Media {
+        font_atlas: atlas,
         font_14: font_14,
         font_18: font_18,
         font_20: font_20,
@@ -169,21 +166,25 @@ fn main() {
         convert: icon_load(&mut factory, &mut drawer, "res/icon/export.png"),
         del: icon_load(&mut factory, &mut drawer, "res/icon/delete.png"),
         edit: icon_load(&mut factory, &mut drawer, "res/icon/edit.png"),
-        images: [icon_load(&mut factory, &mut drawer, "res/images/image1.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image2.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image3.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image4.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image5.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image6.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image7.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image8.png"),
-                 icon_load(&mut factory, &mut drawer, "res/images/image9.png")],
-        menu: [icon_load(&mut factory, &mut drawer, "res/icon/home.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/phone.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/plane.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/wifi.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/settings.png"),
-               icon_load(&mut factory, &mut drawer, "res/icon/volume.png")],
+        images: [
+            icon_load(&mut factory, &mut drawer, "res/images/image1.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image2.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image3.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image4.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image5.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image6.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image7.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image8.png"),
+            icon_load(&mut factory, &mut drawer, "res/images/image9.png"),
+        ],
+        menu: [
+            icon_load(&mut factory, &mut drawer, "res/icon/home.png"),
+            icon_load(&mut factory, &mut drawer, "res/icon/phone.png"),
+            icon_load(&mut factory, &mut drawer, "res/icon/plane.png"),
+            icon_load(&mut factory, &mut drawer, "res/icon/wifi.png"),
+            icon_load(&mut factory, &mut drawer, "res/icon/settings.png"),
+            icon_load(&mut factory, &mut drawer, "res/icon/volume.png"),
+        ],
     };
 
     let mut basic_state = BasicState {
@@ -196,7 +197,7 @@ fn main() {
         selected_icon: 0,
         items: ["Item 0", "item 1", "item 2"],
         piemenu_active: false,
-        piemenu_pos: NkVec2::default(),
+        piemenu_pos: Vec2::default(),
     };
 
     let mut button_state = ButtonState {
@@ -217,25 +218,25 @@ fn main() {
     let mut mx = 0;
     let mut my = 0;
 
-    let mut config = NkConvertConfig::default();
+    let mut config = ConvertConfig::default();
     config.set_null(null.clone());
     config.set_circle_segment_count(22);
     config.set_curve_segment_count(22);
     config.set_arc_segment_count(22);
     config.set_global_alpha(1.0f32);
-    config.set_shape_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
-    config.set_line_aa(NkAntiAliasing::NK_ANTI_ALIASING_ON);
-    
+    config.set_shape_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
+    config.set_line_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
+
     let mut resize = None;
-	let mut closed = false;    
+    let mut closed = false;
     'main: loop {
-    	//not yet published
-    	if let Some((width, height)) = resize {
-    		drawer.col = None;
-    		let new_rtv = gfx_window_dxgi::update_views(&mut window, &mut factory, &mut device, width, height).unwrap();
-    		drawer.col = Some(new_rtv);
-    		fw = width as u32;
-    		fh = height as u32;
+        //not yet published
+        if let Some((width, height)) = resize {
+            drawer.col = None;
+            let new_rtv = gfx_window_dxgi::update_views(&mut window, &mut factory, &mut device, width, height).unwrap();
+            drawer.col = Some(new_rtv);
+            fw = width as u32;
+            fh = height as u32;
 
             resize = None;
         }
@@ -243,83 +244,74 @@ fn main() {
         ctx.input_begin();
         event_loop.poll_events(|event| {
             if let winit::Event::WindowEvent { event, .. } = event {
-	            match event {
-	                winit::WindowEvent::Closed => closed = true,
-	                winit::WindowEvent::ReceivedCharacter(c) => {
-	                    ctx.input_unicode(c);
-	                }
-	                winit::WindowEvent::KeyboardInput{input: winit::KeyboardInput {
-		                    state,
-		                    virtual_keycode,
-		                    ..
-		                },
-	               ..} => {
-	                    if let Some(k) = virtual_keycode {
-	                        let key = match k {
-	                            winit::VirtualKeyCode::Back => NkKey::NK_KEY_BACKSPACE,
-	                            winit::VirtualKeyCode::Delete => NkKey::NK_KEY_DEL,
-	                            winit::VirtualKeyCode::Up => NkKey::NK_KEY_UP,
-	                            winit::VirtualKeyCode::Down => NkKey::NK_KEY_DOWN,
-	                            winit::VirtualKeyCode::Left => NkKey::NK_KEY_LEFT,
-	                            winit::VirtualKeyCode::Right => NkKey::NK_KEY_RIGHT,
-	                            _ => NkKey::NK_KEY_NONE,
-	                        };
-	
-	                        ctx.input_key(key, state == winit::ElementState::Pressed);
-	                    }
-	                }
-	                winit::WindowEvent::CursorMoved{position: (x, y), ..} => {
-	                    mx = x as i32;
-	                    my = y as i32;
-	                    ctx.input_motion(x as i32, y as i32);
-	                }
-	                winit::WindowEvent::MouseInput{state, button, ..} => {
-	                    let button = match button {
-	                        winit::MouseButton::Left => NkButton::NK_BUTTON_LEFT,
-	                        winit::MouseButton::Middle => NkButton::NK_BUTTON_MIDDLE,
-	                        winit::MouseButton::Right => NkButton::NK_BUTTON_RIGHT,
-	                        _ => NkButton::NK_BUTTON_MAX,
-	                    };
-	
-	                    ctx.input_button(button, mx, my, state == winit::ElementState::Pressed)
-	                }
-	                winit::WindowEvent::MouseWheel{delta, ..} => {
-	                    if let winit::MouseScrollDelta::LineDelta(_, y) = delta {
-	                        ctx.input_scroll(y * 22f32);
-	                    }
-	                }
-	                winit::WindowEvent::Resized(w, h) => {
-	                    resize = Some((w as u16, h as u16));
-	                }
-	                _ => (),
-	            }
+                match event {
+                    winit::WindowEvent::Closed => closed = true,
+                    winit::WindowEvent::ReceivedCharacter(c) => {
+                        ctx.input_unicode(c);
+                    }
+                    winit::WindowEvent::KeyboardInput {
+                        input: winit::KeyboardInput { state, virtual_keycode, .. },
+                        ..
+                    } => {
+                        if let Some(k) = virtual_keycode {
+                            let key = match k {
+                                winit::VirtualKeyCode::Back => Key::NK_KEY_BACKSPACE,
+                                winit::VirtualKeyCode::Delete => Key::NK_KEY_DEL,
+                                winit::VirtualKeyCode::Up => Key::NK_KEY_UP,
+                                winit::VirtualKeyCode::Down => Key::NK_KEY_DOWN,
+                                winit::VirtualKeyCode::Left => Key::NK_KEY_LEFT,
+                                winit::VirtualKeyCode::Right => Key::NK_KEY_RIGHT,
+                                _ => Key::NK_KEY_NONE,
+                            };
+
+                            ctx.input_key(key, state == winit::ElementState::Pressed);
+                        }
+                    }
+                    winit::WindowEvent::CursorMoved { position: (x, y), .. } => {
+                        mx = x as i32;
+                        my = y as i32;
+                        ctx.input_motion(x as i32, y as i32);
+                    }
+                    winit::WindowEvent::MouseInput { state, button, .. } => {
+                        let button = match button {
+                            winit::MouseButton::Left => Button::NK_BUTTON_LEFT,
+                            winit::MouseButton::Middle => Button::NK_BUTTON_MIDDLE,
+                            winit::MouseButton::Right => Button::NK_BUTTON_RIGHT,
+                            _ => Button::NK_BUTTON_MAX,
+                        };
+
+                        ctx.input_button(button, mx, my, state == winit::ElementState::Pressed)
+                    }
+                    winit::WindowEvent::MouseWheel { delta, .. } => {
+                        if let winit::MouseScrollDelta::LineDelta(_, y) = delta {
+                            ctx.input_scroll(y * 22f32);
+                        }
+                    }
+                    winit::WindowEvent::Resized(w, h) => {
+                        resize = Some((w as u16, h as u16));
+                    }
+                    _ => (),
+                }
             }
         });
         ctx.input_end();
-        
-        if closed { break 'main; }
-        
-        let scale = NkVec2 {
-            x: 1.0,
-            y: 1.0,
-        };
+
+        if closed {
+            break 'main;
+        }
+
+        let scale = Vec2 { x: 1.0, y: 1.0 };
 
         basic_demo(&mut ctx, &mut media, &mut basic_state);
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
-        
+
         if drawer.col.is_none() {
-        	continue;
+            continue;
         }
 
         encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
-        drawer.draw(&mut ctx,
-                    &mut config,
-                    &mut encoder,
-                    &mut factory,
-                    fw as u32,
-                    fh as u32,
-                    scale);
+        drawer.draw(&mut ctx, &mut config, &mut encoder, &mut factory, fw as u32, fh as u32, scale);
         encoder.flush(&mut device);
         window.swap_buffers(0);
         device.cleanup();
@@ -328,85 +320,59 @@ fn main() {
 
         ctx.clear();
     }
-
-    // TODO as we do not own the memory of `NkFont`'s, we cannot allow bck to drop it. 
-    // Need to find another non-owned wrapper for them, instead of Box.
-    ::std::mem::forget(media); 
-
-    atlas.clear();
-    ctx.free();
 }
 
-fn ui_header(ctx: &mut NkContext, media: &mut Media, title: &str) {
-    ctx.style_set_font(&media.font_18.handle());
+fn ui_header(ctx: &mut Context, media: &mut Media, title: &str) {
+    ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
     ctx.layout_row_dynamic(20f32, 1);
-    ctx.text(title, NkTextAlignment::NK_TEXT_LEFT as NkFlags);
+    ctx.text(title, TextAlignment::NK_TEXT_LEFT as Flags);
 }
 
 const RATIO_W: [f32; 2] = [0.15f32, 0.85f32];
-fn ui_widget(ctx: &mut NkContext, media: &mut Media, height: f32) {
-    ctx.style_set_font(&media.font_22.handle());
-    ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_W);
+fn ui_widget(ctx: &mut Context, media: &mut Media, height: f32) {
+    ctx.style_set_font(media.font_atlas.font(media.font_22).unwrap().handle());
+    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_W);
     // ctx.layout_row_dynamic(height, 1);
     ctx.spacing(1);
 }
 
 const RATIO_WC: [f32; 3] = [0.15f32, 0.50f32, 0.35f32];
-fn ui_widget_centered(ctx: &mut NkContext, media: &mut Media, height: f32) {
-    ctx.style_set_font(&media.font_22.handle());
-    ctx.layout_row(NkLayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
+fn ui_widget_centered(ctx: &mut Context, media: &mut Media, height: f32) {
+    ctx.style_set_font(media.font_atlas.font(media.font_22).unwrap().handle());
+    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
     ctx.spacing(1);
 }
 
-fn free_type(_: &NkTextEdit, c: char) -> bool {
+fn free_type(_: &TextEdit, c: char) -> bool {
     (c > '\u{0030}')
 }
 
-fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
-    ctx.style_set_font(&media.font_20.handle());
-    if ctx.begin(nk_string!("Grid Nuklear Rust!"),
-                 NkRect {
-                     x: 600f32,
-                     y: 350f32,
-                     w: 275f32,
-                     h: 250f32,
-                 },
-                 NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags | NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags) {
-        ctx.style_set_font(&media.font_18.handle());
+fn grid_demo(ctx: &mut Context, media: &mut Media, state: &mut GridState) {
+    ctx.style_set_font(media.font_atlas.font(media.font_20).unwrap().handle());
+    if ctx.begin(
+        nk_string!("Grid Nuklear Rust!"),
+        Rect { x: 600f32, y: 350f32, w: 275f32, h: 250f32 },
+        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags | PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+    ) {
+        ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
         ctx.layout_row_dynamic(30f32, 2);
-        ctx.text("Free type:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string_custom_filter(NkEditType::NK_EDIT_FIELD as NkFlags,
-                                      &mut state.text[3],
-                                      &mut state.text_len[3],
-                                      free_type);
-        ctx.text("Floating point:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags,
-                        &mut state.text[0],
-                        &mut state.text_len[0],
-                        NK_FILTER_FLOAT);
-        ctx.text("Hexadecimal:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags,
-                        &mut state.text[1],
-                        &mut state.text_len[1],
-                        NK_FILTER_HEX);
-        ctx.text("Binary:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-        ctx.edit_string(NkEditType::NK_EDIT_FIELD as NkFlags,
-                        &mut state.text[2],
-                        &mut state.text_len[2],
-                        NK_FILTER_BINARY);
-        ctx.text("Checkbox:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.text("Free type:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string_custom_filter(EditType::NK_EDIT_FIELD as Flags, &mut state.text[3], &mut state.text_len[3], free_type);
+        ctx.text("Floating point:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[0], &mut state.text_len[0], NK_FILTER_FLOAT);
+        ctx.text("Hexadecimal:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[1], &mut state.text_len[1], NK_FILTER_HEX);
+        ctx.text("Binary:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[2], &mut state.text_len[2], NK_FILTER_BINARY);
+        ctx.text("Checkbox:", TextAlignment::NK_TEXT_RIGHT as Flags);
         ctx.checkbox_text("Check me", &mut state.check);
-        ctx.text("Combobox:", NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+        ctx.text("Combobox:", TextAlignment::NK_TEXT_RIGHT as Flags);
 
         let widget_width = ctx.widget_width();
-        if ctx.combo_begin_text(state.items[state.selected_item],
-                                NkVec2 {
-                                    x: widget_width,
-                                    y: 200f32,
-                                }) {
+        if ctx.combo_begin_text(state.items[state.selected_item], Vec2 { x: widget_width, y: 200f32 }) {
             ctx.layout_row_dynamic(25f32, 1);
             for i in 0..state.items.len() {
-                if ctx.combo_item_text(state.items[i], NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+                if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
                     state.selected_item = i;
                 }
             }
@@ -414,20 +380,17 @@ fn grid_demo(ctx: &mut NkContext, media: &mut Media, state: &mut GridState) {
         }
     }
     ctx.end();
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(media.font_atlas.font(media.font_14).unwrap().handle());
 }
 
-fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) {
-    ctx.style_set_font(&media.font_20.handle());
+fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
+    ctx.style_set_font(media.font_atlas.font(media.font_20).unwrap().handle());
 
-    ctx.begin(nk_string!("Button Nuklear Rust!"),
-              NkRect {
-                  x: 50f32,
-                  y: 50f32,
-                  w: 255f32,
-                  h: 610f32,
-              },
-              NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags);
+    ctx.begin(
+        nk_string!("Button Nuklear Rust!"),
+        Rect { x: 50f32, y: 50f32, w: 255f32, h: 610f32 },
+        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags,
+    );
 
     // ------------------------------------------------
     //                  MENU
@@ -436,29 +399,14 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     {
         // toolbar
         ctx.layout_row_static(40f32, 40, 4);
-        if ctx.menu_begin_image(nk_string!("Music"),
-                                media.play.clone(),
-                                NkVec2 {
-                                    x: 110f32,
-                                    y: 120f32,
-                                }) {
+        if ctx.menu_begin_image(nk_string!("Music"), media.play.clone(), Vec2 { x: 110f32, y: 120f32 }) {
             // settings
             ctx.layout_row_dynamic(25f32, 1);
-            ctx.menu_item_image_text(media.play.clone(),
-                                     "Play",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-            ctx.menu_item_image_text(media.stop.clone(),
-                                     "Stop",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-            ctx.menu_item_image_text(media.pause.clone(),
-                                     "Pause",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-            ctx.menu_item_image_text(media.next.clone(),
-                                     "Next",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
-            ctx.menu_item_image_text(media.prev.clone(),
-                                     "Prev",
-                                     NkTextAlignment::NK_TEXT_RIGHT as NkFlags);
+            ctx.menu_item_image_text(media.play.clone(), "Play", TextAlignment::NK_TEXT_RIGHT as Flags);
+            ctx.menu_item_image_text(media.stop.clone(), "Stop", TextAlignment::NK_TEXT_RIGHT as Flags);
+            ctx.menu_item_image_text(media.pause.clone(), "Pause", TextAlignment::NK_TEXT_RIGHT as Flags);
+            ctx.menu_item_image_text(media.next.clone(), "Next", TextAlignment::NK_TEXT_RIGHT as Flags);
+            ctx.menu_item_image_text(media.prev.clone(), "Prev", TextAlignment::NK_TEXT_RIGHT as Flags);
             ctx.menu_end();
         }
         ctx.button_image(media.tools.clone());
@@ -476,9 +424,7 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
         println!("pushed!");
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(media.rocket.clone(),
-                             "Styled",
-                             NkTextAlignment::NK_TEXT_CENTERED as NkFlags) {
+    if ctx.button_image_text(media.rocket.clone(), "Styled", TextAlignment::NK_TEXT_CENTERED as Flags) {
         println!("rocket!");
     }
 
@@ -496,35 +442,17 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     // ------------------------------------------------
     ui_header(ctx, media, "Toggle buttons");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle0 {
-                                 media.checked.clone()
-                             } else {
-                                 media.unchecked.clone()
-                             },
-                             "Toggle",
-                             NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+    if ctx.button_image_text(if state.toggle0 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
         state.toggle0 = !state.toggle0;
     }
 
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle1 {
-                                 media.checked.clone()
-                             } else {
-                                 media.unchecked.clone()
-                             },
-                             "Toggle",
-                             NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+    if ctx.button_image_text(if state.toggle1 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
         state.toggle1 = !state.toggle1;
     }
 
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle2 {
-                                 media.checked.clone()
-                             } else {
-                                 media.unchecked.clone()
-                             },
-                             "Toggle",
-                             NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+    if ctx.button_image_text(if state.toggle2 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
         state.toggle2 = !state.toggle2;
     }
 
@@ -533,95 +461,70 @@ fn button_demo(ctx: &mut NkContext, media: &mut Media, state: &mut ButtonState) 
     // ------------------------------------------------
     ui_header(ctx, media, "Radio buttons");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_symbol_text(if state.option == 0 {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE
-                              } else {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_SOLID
-                              },
-                              "Select 1",
-                              NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+    if ctx.button_symbol_text(
+        if state.option == 0 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
+        "Select 1",
+        TextAlignment::NK_TEXT_LEFT as Flags,
+    ) {
         state.option = 0;
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_symbol_text(if state.option == 1 {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE
-                              } else {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_SOLID
-                              },
-                              "Select 2",
-                              NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+    if ctx.button_symbol_text(
+        if state.option == 1 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
+        "Select 2",
+        TextAlignment::NK_TEXT_LEFT as Flags,
+    ) {
         state.option = 1;
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_symbol_text(if state.option == 2 {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_OUTLINE
-                              } else {
-                                  NkSymbolType::NK_SYMBOL_CIRCLE_SOLID
-                              },
-                              "Select 3",
-                              NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+    if ctx.button_symbol_text(
+        if state.option == 2 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
+        "Select 3",
+        TextAlignment::NK_TEXT_LEFT as Flags,
+    ) {
         state.option = 2;
     }
 
     // ------------------------------------------------
     //                  CONTEXTUAL
     // ------------------------------------------------
-    ctx.style_set_font(&media.font_18.handle());
+    ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
     let bounds = ctx.window_get_bounds();
-    if ctx.contextual_begin(NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
-                            NkVec2 {
-                                x: 150f32,
-                                y: 300f32,
-                            },
-                            bounds) {
+    if ctx.contextual_begin(PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags, Vec2 { x: 150f32, y: 300f32 }, bounds) {
         ctx.layout_row_dynamic(30f32, 1);
-        if ctx.contextual_item_image_text(media.copy.clone(),
-                                          "Clone",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+        if ctx.contextual_item_image_text(media.copy.clone(), "Clone", TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed clone!");
         }
-        if ctx.contextual_item_image_text(media.del.clone(),
-                                          "Delete",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+        if ctx.contextual_item_image_text(media.del.clone(), "Delete", TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed delete!");
         }
-        if ctx.contextual_item_image_text(media.convert.clone(),
-                                          "Convert",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+        if ctx.contextual_item_image_text(media.convert.clone(), "Convert", TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed convert!");
         }
-        if ctx.contextual_item_image_text(media.edit.clone(),
-                                          "Edit",
-                                          NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+        if ctx.contextual_item_image_text(media.edit.clone(), "Edit", TextAlignment::NK_TEXT_RIGHT as Flags) {
             println!("pressed edit!");
         }
         ctx.contextual_end();
     }
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(media.font_atlas.font(media.font_14).unwrap().handle());
     ctx.end();
 }
 
-fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
-    ctx.style_set_font(&media.font_20.handle());
-    ctx.begin(nk_string!("Basic Nuklear Rust!"),
-              NkRect {
-                  x: 320f32,
-                  y: 50f32,
-                  w: 275f32,
-                  h: 610f32,
-              },
-              NkPanelFlags::NK_WINDOW_BORDER as NkFlags | NkPanelFlags::NK_WINDOW_MOVABLE as NkFlags | NkPanelFlags::NK_WINDOW_TITLE as NkFlags);
+fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
+    ctx.style_set_font(media.font_atlas.font(media.font_20).unwrap().handle());
+    ctx.begin(
+        nk_string!("Basic Nuklear Rust!"),
+        Rect { x: 320f32, y: 50f32, w: 275f32, h: 610f32 },
+        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags,
+    );
 
     // ------------------------------------------------
     //                  POPUP BUTTON
     // ------------------------------------------------
 
-
     ui_header(ctx, media, "Popup & Scrollbar & Images");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(media.dir.clone(),
-                             "Images",
-                             NkTextAlignment::NK_TEXT_CENTERED as NkFlags) {
+    if ctx.button_image_text(media.dir.clone(), "Images", TextAlignment::NK_TEXT_CENTERED as Flags) {
         state.image_active = !state.image_active;
     }
 
@@ -635,26 +538,16 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     // ------------------------------------------------
     //                  IMAGE POPUP
     // ------------------------------------------------
-    if state.image_active {
-        if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
-                           nk_string!("Image Popup"),
-                           0,
-                           NkRect {
-                               x: 265f32,
-                               y: 0f32,
-                               w: 320f32,
-                               h: 220f32,
-                           }) {
-            ctx.layout_row_static(82f32, 82, 3);
-            for i in 0..9 {
-                if ctx.button_image(media.images[i].clone()) {
-                    state.selected_image = i;
-                    state.image_active = false;
-                    ctx.popup_close();
-                }
+    if state.image_active && ctx.popup_begin(PopupType::NK_POPUP_STATIC, nk_string!("Image Popup"), 0, Rect { x: 265f32, y: 0f32, w: 320f32, h: 220f32 }) {
+        ctx.layout_row_static(82f32, 82, 3);
+        for i in 0..9 {
+            if ctx.button_image(media.images[i].clone()) {
+                state.selected_image = i;
+                state.image_active = false;
+                ctx.popup_close();
             }
-            ctx.popup_end();
         }
+        ctx.popup_end();
     }
     // ------------------------------------------------
     //                  COMBOBOX
@@ -662,14 +555,10 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     ui_header(ctx, media, "Combo box");
     ui_widget(ctx, media, 40f32);
     let widget_width = ctx.widget_width();
-    if ctx.combo_begin_text(state.items[state.selected_item],
-                            NkVec2 {
-                                x: widget_width,
-                                y: 200f32,
-                            }) {
+    if ctx.combo_begin_text(state.items[state.selected_item], Vec2 { x: widget_width, y: 200f32 }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_text(state.items[i], NkTextAlignment::NK_TEXT_LEFT as NkFlags) {
+            if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
                 state.selected_item = i;
             }
         }
@@ -678,17 +567,10 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
 
     ui_widget(ctx, media, 40f32);
     let widget_width = ctx.widget_width();
-    if ctx.combo_begin_image_text(state.items[state.selected_icon],
-                                  media.images[state.selected_icon].clone(),
-                                  NkVec2 {
-                                      x: widget_width,
-                                      y: 200f32,
-                                  }) {
+    if ctx.combo_begin_image_text(state.items[state.selected_icon], media.images[state.selected_icon].clone(), Vec2 { x: widget_width, y: 200f32 }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_image_text(media.images[i].clone(),
-                                         state.items[i],
-                                         NkTextAlignment::NK_TEXT_RIGHT as NkFlags) {
+            if ctx.combo_item_image_text(media.images[i].clone(), state.items[i], TextAlignment::NK_TEXT_RIGHT as Flags) {
                 state.selected_icon = i;
             }
         }
@@ -715,8 +597,8 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
     //                  PIEMENU
     // ------------------------------------------------
     let bounds = ctx.window_get_bounds();
-    if ctx.input().is_mouse_click_down_in_rect(NkButton::NK_BUTTON_RIGHT, bounds, true) {
-        state.piemenu_pos = ctx.input().mouse().pos().clone();
+    if ctx.input().is_mouse_click_down_in_rect(Button::NK_BUTTON_RIGHT, bounds, true) {
+        state.piemenu_pos = *ctx.input().mouse().pos();
         state.piemenu_active = true;
     }
 
@@ -730,7 +612,7 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
             state.piemenu_active = false;
         }
     }
-    ctx.style_set_font(&media.font_14.handle());
+    ctx.style_set_font(media.font_atlas.font(media.font_14).unwrap().handle());
     ctx.end();
 }
 
@@ -739,87 +621,74 @@ fn basic_demo(ctx: &mut NkContext, media: &mut Media, state: &mut BasicState) {
 //                          CUSTOM WIDGET
 //
 // ===============================================================
-fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) -> i32 {
+fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32 {
     let mut ret = -1i32;
     let mut total_space;
-    let mut bounds = NkRect::default();
+    let mut bounds = Rect::default();
     let active_item;
 
     // pie menu popup
-    let border = ctx.style().window().border_color().clone();
+    let border = *ctx.style().window().border_color();
     let background = ctx.style().window().fixed_background();
-    ctx.style().window().set_fixed_background(NkStyleItem::hide());
+    ctx.style().window().set_fixed_background(StyleItem::hide());
     ctx.style().window().set_border_color(color_rgba(0, 0, 0, 0));
 
     total_space = ctx.window_get_content_region();
-    ctx.style().window().set_spacing(NkVec2 { x: 0f32, y: 0f32 });
-    ctx.style().window().set_padding(NkVec2 { x: 0f32, y: 0f32 });
+    ctx.style().window().set_spacing(Vec2 { x: 0f32, y: 0f32 });
+    ctx.style().window().set_padding(Vec2 { x: 0f32, y: 0f32 });
 
-    if ctx.popup_begin(NkPopupType::NK_POPUP_STATIC,
-                       nk_string!("piemenu"),
-                       NkPanelFlags::NK_WINDOW_NO_SCROLLBAR as NkFlags,
-                       NkRect {
-                           x: pos.x - total_space.x - radius,
-                           y: pos.y - radius - total_space.y,
-                           w: 2f32 * radius,
-                           h: 2f32 * radius,
-                       }) {
-        
+    if ctx.popup_begin(
+        PopupType::NK_POPUP_STATIC,
+        nk_string!("piemenu"),
+        PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+        Rect {
+            x: pos.x - total_space.x - radius,
+            y: pos.y - radius - total_space.y,
+            w: 2f32 * radius,
+            h: 2f32 * radius,
+        },
+    ) {
         total_space = ctx.window_get_content_region();
-        ctx.style().window().set_spacing(NkVec2 { x: 4f32, y: 4f32 });
-        ctx.style().window().set_padding(NkVec2 { x: 8f32, y: 8f32 });
+        ctx.style().window().set_spacing(Vec2 { x: 4f32, y: 4f32 });
+        ctx.style().window().set_padding(Vec2 { x: 8f32, y: 8f32 });
         ctx.layout_row_dynamic(total_space.h, 1);
         ctx.widget(&mut bounds);
 
         {
-        	let mouse = ctx.input().mouse();
-			let out = ctx.window_get_canvas().unwrap();
-			
-	        // outer circle        
-	        out.fill_circle(bounds, nuklear_rust::color_rgb(50, 50, 50));
+            let mouse = ctx.input().mouse();
+            let out = ctx.window_get_canvas().unwrap();
+
+            // outer circle
+            out.fill_circle(bounds, nuklear::color_rgb(50, 50, 50));
             // circle buttons
             let step = (2f32 * ::std::f32::consts::PI) / (::std::cmp::max(1, icons.len()) as f32);
             let mut a_min = 0f32;
             let mut a_max = step;
 
-            let center = NkVec2 {
+            let center = Vec2 {
                 x: bounds.x + bounds.w / 2.0f32,
                 y: bounds.y + bounds.h / 2.0f32,
             };
-            let drag = NkVec2 {
+            let drag = Vec2 {
                 x: mouse.pos().x - center.x,
                 y: mouse.pos().y - center.y,
             };
             let mut angle = drag.y.atan2(drag.x);
             if angle < -0.0f32 {
-                angle += 2.0f32 * 3.141592654f32;
+                angle += 2.0f32 * ::std::f32::consts::PI;
             }
             active_item = (angle / step) as usize;
 
             for i in 0..icons.len() {
-                let mut content = NkRect::default();
-                out.fill_arc(center.x,
-                             center.y,
-                             (bounds.w / 2.0f32),
-                             a_min,
-                             a_max,
-                             if active_item == i {
-                                 nuklear_rust::color_rgb(45, 100, 255)
-                             } else {
-                                 nuklear_rust::color_rgb(60, 60, 60)
-                             });
+                let mut content = Rect::default();
+                out.fill_arc(center.x, center.y, bounds.w / 2.0f32, a_min, a_max, if active_item == i { nuklear::color_rgb(45, 100, 255) } else { nuklear::color_rgb(60, 60, 60) });
 
                 // separator line
                 let mut rx = bounds.w / 2.0f32;
                 let mut ry = 0f32;
                 let dx = rx * a_min.cos() - ry * a_min.sin();
                 let dy = rx * a_min.sin() + ry * a_min.cos();
-                out.stroke_line(center.x,
-                                center.y,
-                                center.x + dx,
-                                center.y + dy,
-                                1.0f32,
-                                nuklear_rust::color_rgb(50, 50, 50));
+                out.stroke_line(center.x, center.y, center.x + dx, center.y + dy, 1.0f32, nuklear::color_rgb(50, 50, 50));
 
                 // button content
                 let a = a_min + (a_max - a_min) / 2.0f32;
@@ -829,44 +698,42 @@ fn ui_piemenu(ctx: &mut NkContext, pos: NkVec2, radius: f32, icons: &[NkImage]) 
                 content.h = 30f32;
                 content.x = center.x + ((rx * a.cos() - ry * a.sin()) - content.w / 2.0f32);
                 content.y = center.y + (rx * a.sin() + ry * a.cos() - content.h / 2.0f32);
-                out.draw_image(content, &icons[i], nuklear_rust::color_rgb(255, 255, 255));
+                out.draw_image(content, &icons[i], nuklear::color_rgb(255, 255, 255));
                 a_min = a_max;
                 a_max += step;
             }
         }
         {
             let out = ctx.window_get_canvas().unwrap();
-	        
-	        // inner circle
-            let mut inner = NkRect::default();
+             
+            // inner circle
+            let mut inner = Rect::default();
             inner.x = bounds.x + bounds.w / 2f32 - bounds.w / 4f32;
             inner.y = bounds.y + bounds.h / 2f32 - bounds.h / 4f32;
             inner.w = bounds.w / 2f32;
             inner.h = bounds.h / 2f32;
-            out.fill_circle(inner, nuklear_rust::color_rgb(45, 45, 45));
+            out.fill_circle(inner, nuklear::color_rgb(45, 45, 45));
 
             // active icon content
             bounds.w = inner.w / 2.0f32;
             bounds.h = inner.h / 2.0f32;
             bounds.x = inner.x + inner.w / 2f32 - bounds.w / 2f32;
             bounds.y = inner.y + inner.h / 2f32 - bounds.h / 2f32;
-            out.draw_image(bounds,
-                           &icons[active_item],
-                           nuklear_rust::color_rgb(255, 255, 255));
+            out.draw_image(bounds, &icons[active_item], nuklear::color_rgb(255, 255, 255));
         }
         ctx.layout_space_end();
-        if !ctx.input().is_mouse_down(NkButton::NK_BUTTON_RIGHT) {
+        if !ctx.input().is_mouse_down(Button::NK_BUTTON_RIGHT) {
             ctx.popup_close();
             ret = active_item as i32;
         }
     } else {
         ret = -2;
     }
-    ctx.style().window().set_spacing(NkVec2 { x: 4f32, y: 4f32 });
-    ctx.style().window().set_padding(NkVec2 { x: 8f32, y: 8f32 });
+    ctx.style().window().set_spacing(Vec2 { x: 4f32, y: 4f32 });
+    ctx.style().window().set_padding(Vec2 { x: 8f32, y: 8f32 });
     ctx.popup_end();
 
     ctx.style().window().set_fixed_background(background);
-    ctx.style().window().set_border_color(border.clone());
+    ctx.style().window().set_border_color(border);
     ret
 }

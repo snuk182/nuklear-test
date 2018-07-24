@@ -1,11 +1,11 @@
 [package]
 name = "nuklear-sample-extended"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "~0.3", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.6"
+nuklear-rust = {version = "~0.4", features = ["rust_allocator"]}
+nuklear-backend-gfx = "~0.7"
 gfx_device_dx11 = "~0.7"
 gfx_window_dxgi = "~0.11"
 winit = "~0.10"
