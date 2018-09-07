@@ -69,7 +69,7 @@ struct Media {
 fn icon_load(drawer: &mut Drawer, filename: &str) -> Image {
     let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap();
     let mut hnd = drawer.add_image(&img);
-    Image::with_ptr(hnd.ptr().unwrap())
+    unsafe { Image::with_ptr(hnd.ptr().unwrap()) }
 }
 
 fn main() {
@@ -472,12 +472,12 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
     // pie menu popup
     let border = ctx.style().window().border_color().clone();
     let background = ctx.style().window().fixed_background();
-    ctx.style().window().set_fixed_background(StyleItem::hide());
-    ctx.style().window().set_border_color(color_rgba(0, 0, 0, 0));
+    ctx.style_mut().window_mut().set_fixed_background(StyleItem::hide());
+    ctx.style_mut().window_mut().set_border_color(color_rgba(0, 0, 0, 0));
 
     total_space = ctx.window_get_content_region();
-    ctx.style().window().set_spacing(Vec2 { x: 0f32, y: 0f32 });
-    ctx.style().window().set_padding(Vec2 { x: 0f32, y: 0f32 });
+    ctx.style_mut().window_mut().set_spacing(Vec2 { x: 0f32, y: 0f32 });
+    ctx.style_mut().window_mut().set_padding(Vec2 { x: 0f32, y: 0f32 });
 
     if ctx.popup_begin(
         PopupType::NK_POPUP_STATIC,
@@ -491,14 +491,14 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
         },
     ) {
         total_space = ctx.window_get_content_region();
-        ctx.style().window().set_spacing(Vec2 { x: 4f32, y: 4f32 });
-        ctx.style().window().set_padding(Vec2 { x: 8f32, y: 8f32 });
+        ctx.style_mut().window_mut().set_spacing(Vec2 { x: 4f32, y: 4f32 });
+        ctx.style_mut().window_mut().set_padding(Vec2 { x: 8f32, y: 8f32 });
         ctx.layout_row_dynamic(total_space.h, 1);
         ctx.widget(&mut bounds);
 
         {
             let mouse = ctx.input().mouse();
-            let out = ctx.window_get_canvas().unwrap();
+            let out = ctx.window_get_canvas_mut().unwrap();
 
             // outer circle
             out.fill_circle(bounds, nuklear::color_rgb(50, 50, 50));
@@ -546,7 +546,7 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
             }
         }
         {
-            let out = ctx.window_get_canvas().unwrap();
+            let out = ctx.window_get_canvas_mut().unwrap();
 
             // inner circle
             let mut inner = Rect::default();
@@ -571,11 +571,11 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
     } else {
         ret = -2;
     }
-    ctx.style().window().set_spacing(Vec2 { x: 4f32, y: 4f32 });
-    ctx.style().window().set_padding(Vec2 { x: 8f32, y: 8f32 });
+    ctx.style_mut().window_mut().set_spacing(Vec2 { x: 4f32, y: 4f32 });
+    ctx.style_mut().window_mut().set_padding(Vec2 { x: 8f32, y: 8f32 });
     ctx.popup_end();
 
-    ctx.style().window().set_fixed_background(background);
-    ctx.style().window().set_border_color(border.clone());
+    ctx.style_mut().window_mut().set_fixed_background(background);
+    ctx.style_mut().window_mut().set_border_color(border.clone());
     ret
 }
