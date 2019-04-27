@@ -5,12 +5,9 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
 nuklear-rust = {version = "~0.5", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.7"
-gfx_device_gl = "~0.15"
-gfx_window_glutin = "~0.20"
-gfx = "~0.17"
-glutin = "~0.12"
-image = "~0.12"
+nuklear-backend-wgpurs = {version = "*", path = "../nuklear-backend-wgpurs", features = ["vulkan"]}
+wgpu = {version = "*", path = "../wgpu/wgpu-rs"}
+image = "~0.21"
 
 [[bin]]
 name = "t"
