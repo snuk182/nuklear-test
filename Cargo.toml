@@ -1,13 +1,13 @@
 [package]
 name = "nuklear-sample-extended"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-nuklear-rust = {version = "~0.5", features = ["rust_allocator"]}
-nuklear-backend-gdi = {version = "~0.2", features = ["piston_image"]}
+nuklear-rust = {version = "~0.6", features = ["rust_allocator"]}
+nuklear-backend-gdi = {version = "~0.3", features = ["piston_image"] }
 winapi = {version = "~0.3", features = ["windef", "minwindef", "winuser", "winbase", "wingdi"]}
-image = "*"
 
 [[bin]]
 name = "t"
