@@ -2,18 +2,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(cast_lossless))]
 #![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 
-#[macro_use]
-extern crate nuklear;
-extern crate nuklear_backend_gfx;
-
-extern crate image;
-
-extern crate gfx;
-extern crate gfx_device_dx11;
-extern crate gfx_window_dxgi;
-
-extern crate winit;
-
 use nuklear::*;
 use nuklear_backend_gfx::{Drawer, GfxBackend};
 
@@ -131,7 +119,7 @@ fn main() {
     let font_22 = atlas.add_font_with_config(&cfg).unwrap();
 
     let font_tex = {
-        let (b, w, h) = atlas.bake(FontAtlasFormat::NK_FONT_ATLAS_RGBA32);
+        let (b, w, h) = atlas.bake(FontAtlasFormat::Rgba32);
         drawer.add_texture(&mut factory, b, w, h)
     };
 
@@ -224,8 +212,8 @@ fn main() {
     config.set_curve_segment_count(22);
     config.set_arc_segment_count(22);
     config.set_global_alpha(1.0f32);
-    config.set_shape_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
-    config.set_line_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
+    config.set_shape_aa(AntiAliasing::On);
+    config.set_line_aa(AntiAliasing::On);
 
     let mut resize = None;
     let mut closed = false;
@@ -255,13 +243,13 @@ fn main() {
                     } => {
                         if let Some(k) = virtual_keycode {
                             let key = match k {
-                                winit::VirtualKeyCode::Back => Key::NK_KEY_BACKSPACE,
-                                winit::VirtualKeyCode::Delete => Key::NK_KEY_DEL,
-                                winit::VirtualKeyCode::Up => Key::NK_KEY_UP,
-                                winit::VirtualKeyCode::Down => Key::NK_KEY_DOWN,
-                                winit::VirtualKeyCode::Left => Key::NK_KEY_LEFT,
-                                winit::VirtualKeyCode::Right => Key::NK_KEY_RIGHT,
-                                _ => Key::NK_KEY_NONE,
+                                winit::VirtualKeyCode::Back => Key::Backspace,
+                                winit::VirtualKeyCode::Delete => Key::Del,
+                                winit::VirtualKeyCode::Up => Key::Up,
+                                winit::VirtualKeyCode::Down => Key::Down,
+                                winit::VirtualKeyCode::Left => Key::Left,
+                                winit::VirtualKeyCode::Right => Key::Right,
+                                _ => Key::None,
                             };
 
                             ctx.input_key(key, state == winit::ElementState::Pressed);
@@ -274,17 +262,17 @@ fn main() {
                     }
                     winit::WindowEvent::MouseInput { state, button, .. } => {
                         let button = match button {
-                            winit::MouseButton::Left => Button::NK_BUTTON_LEFT,
-                            winit::MouseButton::Middle => Button::NK_BUTTON_MIDDLE,
-                            winit::MouseButton::Right => Button::NK_BUTTON_RIGHT,
-                            _ => Button::NK_BUTTON_MAX,
+                            winit::MouseButton::Left => Button::Left,
+                            winit::MouseButton::Middle => Button::Middle,
+                            winit::MouseButton::Right => Button::Right,
+                            _ => Button::Max,
                         };
 
                         ctx.input_button(button, mx, my, state == winit::ElementState::Pressed)
                     }
                     winit::WindowEvent::MouseWheel { delta, .. } => {
-                        if let winit::MouseScrollDelta::LineDelta(_, y) = delta {
-                            ctx.input_scroll(y * 22f32);
+                        if let winit::MouseScrollDelta::LineDelta(x, y) = delta {
+                            ctx.input_scroll(Vec2 { x: x*22.0, y: y*22.0 });
                         }
                     }
                     winit::WindowEvent::Resized(w, h) => {
@@ -325,13 +313,13 @@ fn main() {
 fn ui_header(ctx: &mut Context, media: &mut Media, title: &str) {
     ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
     ctx.layout_row_dynamic(20f32, 1);
-    ctx.text(title, TextAlignment::NK_TEXT_LEFT as Flags);
+    ctx.text(title, TextAlignment::Left as Flags);
 }
 
 const RATIO_W: [f32; 2] = [0.15f32, 0.85f32];
 fn ui_widget(ctx: &mut Context, media: &mut Media, height: f32) {
     ctx.style_set_font(media.font_atlas.font(media.font_22).unwrap().handle());
-    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_W);
+    ctx.layout_row(LayoutFormat::Dynamic, height, &RATIO_W);
     // ctx.layout_row_dynamic(height, 1);
     ctx.spacing(1);
 }
@@ -339,7 +327,7 @@ fn ui_widget(ctx: &mut Context, media: &mut Media, height: f32) {
 const RATIO_WC: [f32; 3] = [0.15f32, 0.50f32, 0.35f32];
 fn ui_widget_centered(ctx: &mut Context, media: &mut Media, height: f32) {
     ctx.style_set_font(media.font_atlas.font(media.font_22).unwrap().handle());
-    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
+    ctx.layout_row(LayoutFormat::Dynamic, height, &RATIO_WC);
     ctx.spacing(1);
 }
 
@@ -352,27 +340,27 @@ fn grid_demo(ctx: &mut Context, media: &mut Media, state: &mut GridState) {
     if ctx.begin(
         nk_string!("Grid Nuklear Rust!"),
         Rect { x: 600f32, y: 350f32, w: 275f32, h: 250f32 },
-        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags | PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+        PanelFlags::Border as Flags | PanelFlags::Movable as Flags | PanelFlags::Title as Flags | PanelFlags::NoScrollbar as Flags,
     ) {
         ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
         ctx.layout_row_dynamic(30f32, 2);
-        ctx.text("Free type:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string_custom_filter(EditType::NK_EDIT_FIELD as Flags, &mut state.text[3], &mut state.text_len[3], free_type);
-        ctx.text("Floating point:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[0], &mut state.text_len[0], NK_FILTER_FLOAT);
-        ctx.text("Hexadecimal:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[1], &mut state.text_len[1], NK_FILTER_HEX);
-        ctx.text("Binary:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[2], &mut state.text_len[2], NK_FILTER_BINARY);
-        ctx.text("Checkbox:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.text("Free type:", TextAlignment::Right as Flags);
+        ctx.edit_string_custom_filter(EditType::Field as Flags, &mut state.text[3], &mut state.text_len[3], free_type);
+        ctx.text("Floating point:", TextAlignment::Right as Flags);
+        ctx.edit_string(EditType::Field as Flags, &mut state.text[0], &mut state.text_len[0], NK_FILTER_FLOAT);
+        ctx.text("Hexadecimal:", TextAlignment::Right as Flags);
+        ctx.edit_string(EditType::Field as Flags, &mut state.text[1], &mut state.text_len[1], NK_FILTER_HEX);
+        ctx.text("Binary:", TextAlignment::Right as Flags);
+        ctx.edit_string(EditType::Field as Flags, &mut state.text[2], &mut state.text_len[2], NK_FILTER_BINARY);
+        ctx.text("Checkbox:", TextAlignment::Right as Flags);
         ctx.checkbox_text("Check me", &mut state.check);
-        ctx.text("Combobox:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.text("Combobox:", TextAlignment::Right as Flags);
 
         let widget_width = ctx.widget_width();
         if ctx.combo_begin_text(state.items[state.selected_item], Vec2 { x: widget_width, y: 200f32 }) {
             ctx.layout_row_dynamic(25f32, 1);
             for i in 0..state.items.len() {
-                if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
+                if ctx.combo_item_text(state.items[i], TextAlignment::Left as Flags) {
                     state.selected_item = i;
                 }
             }
@@ -389,7 +377,7 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     ctx.begin(
         nk_string!("Button Nuklear Rust!"),
         Rect { x: 50f32, y: 50f32, w: 255f32, h: 610f32 },
-        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags,
+        PanelFlags::Border as Flags | PanelFlags::Movable as Flags | PanelFlags::Title as Flags,
     );
 
     // ------------------------------------------------
@@ -402,11 +390,11 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
         if ctx.menu_begin_image(nk_string!("Music"), media.play.clone(), Vec2 { x: 110f32, y: 120f32 }) {
             // settings
             ctx.layout_row_dynamic(25f32, 1);
-            ctx.menu_item_image_text(media.play.clone(), "Play", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.stop.clone(), "Stop", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.pause.clone(), "Pause", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.next.clone(), "Next", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.prev.clone(), "Prev", TextAlignment::NK_TEXT_RIGHT as Flags);
+            ctx.menu_item_image_text(media.play.clone(), "Play", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.stop.clone(), "Stop", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.pause.clone(), "Pause", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.next.clone(), "Next", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.prev.clone(), "Prev", TextAlignment::Right as Flags);
             ctx.menu_end();
         }
         ctx.button_image(media.tools.clone());
@@ -424,7 +412,7 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
         println!("pushed!");
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(media.rocket.clone(), "Styled", TextAlignment::NK_TEXT_CENTERED as Flags) {
+    if ctx.button_image_text(media.rocket.clone(), "Styled", TextAlignment::Centered as Flags) {
         println!("rocket!");
     }
 
@@ -442,17 +430,17 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     // ------------------------------------------------
     ui_header(ctx, media, "Toggle buttons");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle0 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
+    if ctx.button_image_text(if state.toggle0 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::Left as Flags) {
         state.toggle0 = !state.toggle0;
     }
 
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle1 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
+    if ctx.button_image_text(if state.toggle1 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::Left as Flags) {
         state.toggle1 = !state.toggle1;
     }
 
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle2 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
+    if ctx.button_image_text(if state.toggle2 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::Left as Flags) {
         state.toggle2 = !state.toggle2;
     }
 
@@ -462,25 +450,25 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     ui_header(ctx, media, "Radio buttons");
     ui_widget(ctx, media, 35f32);
     if ctx.button_symbol_text(
-        if state.option == 0 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
+        if state.option == 0 { SymbolType::CircleOutline } else { SymbolType::CircleSolid },
         "Select 1",
-        TextAlignment::NK_TEXT_LEFT as Flags,
+        TextAlignment::Left as Flags,
     ) {
         state.option = 0;
     }
     ui_widget(ctx, media, 35f32);
     if ctx.button_symbol_text(
-        if state.option == 1 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
+        if state.option == 1 { SymbolType::CircleOutline } else { SymbolType::CircleSolid },
         "Select 2",
-        TextAlignment::NK_TEXT_LEFT as Flags,
+        TextAlignment::Left as Flags,
     ) {
         state.option = 1;
     }
     ui_widget(ctx, media, 35f32);
     if ctx.button_symbol_text(
-        if state.option == 2 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
+        if state.option == 2 { SymbolType::CircleOutline } else { SymbolType::CircleSolid },
         "Select 3",
-        TextAlignment::NK_TEXT_LEFT as Flags,
+        TextAlignment::Left as Flags,
     ) {
         state.option = 2;
     }
@@ -490,18 +478,18 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     // ------------------------------------------------
     ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
     let bounds = ctx.window_get_bounds();
-    if ctx.contextual_begin(PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags, Vec2 { x: 150f32, y: 300f32 }, bounds) {
+    if ctx.contextual_begin(PanelFlags::NoScrollbar as Flags, Vec2 { x: 150f32, y: 300f32 }, bounds) {
         ctx.layout_row_dynamic(30f32, 1);
-        if ctx.contextual_item_image_text(media.copy.clone(), "Clone", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.copy.clone(), "Clone", TextAlignment::Right as Flags) {
             println!("pressed clone!");
         }
-        if ctx.contextual_item_image_text(media.del.clone(), "Delete", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.del.clone(), "Delete", TextAlignment::Right as Flags) {
             println!("pressed delete!");
         }
-        if ctx.contextual_item_image_text(media.convert.clone(), "Convert", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.convert.clone(), "Convert", TextAlignment::Right as Flags) {
             println!("pressed convert!");
         }
-        if ctx.contextual_item_image_text(media.edit.clone(), "Edit", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.edit.clone(), "Edit", TextAlignment::Right as Flags) {
             println!("pressed edit!");
         }
         ctx.contextual_end();
@@ -515,7 +503,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     ctx.begin(
         nk_string!("Basic Nuklear Rust!"),
         Rect { x: 320f32, y: 50f32, w: 275f32, h: 610f32 },
-        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags,
+        PanelFlags::Border as Flags | PanelFlags::Movable as Flags | PanelFlags::Title as Flags,
     );
 
     // ------------------------------------------------
@@ -524,7 +512,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
 
     ui_header(ctx, media, "Popup & Scrollbar & Images");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(media.dir.clone(), "Images", TextAlignment::NK_TEXT_CENTERED as Flags) {
+    if ctx.button_image_text(media.dir.clone(), "Images", TextAlignment::Centered as Flags) {
         state.image_active = !state.image_active;
     }
 
@@ -538,7 +526,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     // ------------------------------------------------
     //                  IMAGE POPUP
     // ------------------------------------------------
-    if state.image_active && ctx.popup_begin(PopupType::NK_POPUP_STATIC, nk_string!("Image Popup"), 0, Rect { x: 265f32, y: 0f32, w: 320f32, h: 220f32 }) {
+    if state.image_active && ctx.popup_begin(PopupType::Static, nk_string!("Image Popup"), 0, Rect { x: 265f32, y: 0f32, w: 320f32, h: 220f32 }) {
         ctx.layout_row_static(82f32, 82, 3);
         for i in 0..9 {
             if ctx.button_image(media.images[i].clone()) {
@@ -558,7 +546,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     if ctx.combo_begin_text(state.items[state.selected_item], Vec2 { x: widget_width, y: 200f32 }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
+            if ctx.combo_item_text(state.items[i], TextAlignment::Left as Flags) {
                 state.selected_item = i;
             }
         }
@@ -570,7 +558,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     if ctx.combo_begin_image_text(state.items[state.selected_icon], media.images[state.selected_icon].clone(), Vec2 { x: widget_width, y: 200f32 }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_image_text(media.images[i].clone(), state.items[i], TextAlignment::NK_TEXT_RIGHT as Flags) {
+            if ctx.combo_item_image_text(media.images[i].clone(), state.items[i], TextAlignment::Right as Flags) {
                 state.selected_icon = i;
             }
         }
@@ -597,7 +585,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     //                  PIEMENU
     // ------------------------------------------------
     let bounds = ctx.window_get_bounds();
-    if ctx.input().is_mouse_click_down_in_rect(Button::NK_BUTTON_RIGHT, bounds, true) {
+    if ctx.input().is_mouse_click_down_in_rect(Button::Right, bounds, true) {
         state.piemenu_pos = *ctx.input().mouse().pos();
         state.piemenu_active = true;
     }
@@ -638,9 +626,9 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
     ctx.style_mut().window_mut().set_padding(Vec2 { x: 0f32, y: 0f32 });
 
     if ctx.popup_begin(
-        PopupType::NK_POPUP_STATIC,
+        PopupType::Static,
         nk_string!("piemenu"),
-        PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+        PanelFlags::NoScrollbar as Flags,
         Rect {
             x: pos.x - total_space.x - radius,
             y: pos.y - radius - total_space.y,
@@ -722,7 +710,7 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
             out.draw_image(bounds, &icons[active_item], nuklear::color_rgb(255, 255, 255));
         }
         ctx.layout_space_end();
-        if !ctx.input().is_mouse_down(Button::NK_BUTTON_RIGHT) {
+        if !ctx.input().is_mouse_down(Button::Right) {
             ctx.popup_close();
             ret = active_item as i32;
         }
