@@ -2,10 +2,11 @@
 name = "nuklear-sample-extended"
 version = "0.3.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-nuklear-rust = {version = "~0.5", features = ["rust_allocator"]}
-nuklear-backend-wgpurs = {version = "*", path = "../nuklear-backend-wgpurs", features = ["vulkan"]}
+nuklear-rust = {version = "~0.6", features = ["rust_allocator"]}
+nuklear-backend-wgpurs = {version = "*", path = "../nuklear-backend-wgpurs", features = ["dx11"]}
 wgpu = {version = "*", path = "../wgpu/wgpu-rs"}
 image = "~0.21"
 
