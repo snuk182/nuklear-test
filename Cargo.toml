@@ -5,7 +5,7 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-nuklear-rust = {version = "~0.6", features = ["rust_allocator"]}
+nuklear-rust = {version = "~0.6"}
 nuklear-backend-wgpurs = {version = "~0.1", features = ["dx12"]}
 wgpu = "~0.2"
 image = "~0.21"
