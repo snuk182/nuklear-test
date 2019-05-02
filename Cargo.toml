@@ -1,16 +1,14 @@
 [package]
 name = "nuklear-sample-extended"
-version = "0.3.0"
+version = "0.1.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-nuklear-rust = {version = "~0.5", features = ["rust_allocator"]}
-nuklear-backend-gfx = "~0.7"
-gfx_device_gl = "~0.15"
-gfx_window_glutin = "~0.20"
-gfx = "~0.17"
-glutin = "~0.12"
-image = "~0.12"
+nuklear-rust = {version = "~0.6", features = ["rust_allocator"]}
+nuklear-backend-wgpurs = {version = "~0.1", features = ["vulkan"]}
+wgpu = "~0.2"
+image = "~0.21"
 
 [[bin]]
 name = "t"

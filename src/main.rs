@@ -1,24 +1,13 @@
-#[macro_use]
-extern crate nuklear;
-extern crate nuklear_backend_gfx;
-
-extern crate image;
-
-extern crate gfx;
-extern crate gfx_window_glutin;
-extern crate glutin;
-
 use nuklear::*;
-use nuklear_backend_gfx::{Drawer, GfxBackend};
+use nuklear_backend_wgpurs::Drawer;
 
-use gfx::Device as Gd;
-use glutin::{GlContext, GlRequest};
+use wgpu::winit::{
+    dpi::{LogicalPosition, LogicalSize},
+    ElementState, Event, EventsLoop, KeyboardInput, MouseButton as WinitMouseButton, MouseScrollDelta, VirtualKeyCode, WindowBuilder, WindowEvent,
+};
 
 use std::fs::*;
 use std::io::BufReader;
-
-pub type ColorFormat = gfx::format::Rgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
 
 const MAX_VERTEX_MEMORY: usize = 512 * 1024;
 const MAX_ELEMENT_MEMORY: usize = 128 * 1024;
@@ -90,30 +79,43 @@ impl Drop for Media {
     }
 }
 
-fn icon_load<F, R: gfx::Resources>(factory: &mut F, drawer: &mut Drawer<R>, filename: &str) -> Image
-where
-    F: gfx::Factory<R>,
-{
-    let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_rgba();
+fn icon_load(device: &mut wgpu::Device, drawer: &mut Drawer, filename: &str) -> Image {
+    let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_bgra();
 
     let (w, h) = img.dimensions();
-    let mut hnd = drawer.add_texture(factory, &img, w, h);
+    let mut hnd = drawer.add_texture(device, &img, w, h);
 
     Image::with_id(hnd.id().unwrap())
 }
 
 fn main() {
-    let gl_version = GlRequest::GlThenGles {
-        opengles_version: (2, 0),
-        opengl_version: (3, 3),
+    let instance = wgpu::Instance::new();
+
+    let adapter = instance.get_adapter(&wgpu::AdapterDescriptor {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+    });
+
+    let mut device = adapter.create_device(&wgpu::DeviceDescriptor {
+        extensions: wgpu::Extensions { anisotropic_filtering: false },
+    });
+
+    let mut event_loop = EventsLoop::new();
+
+    let window = WindowBuilder::new().with_dimensions(LogicalSize { width: 1280., height: 800. }).with_title("Nuklear Rust Wgpu-rs Demo").build(&event_loop).unwrap();
+
+    let surface = instance.create_surface(&window);
+
+    let mut dpi_factor = window.get_hidpi_factor();
+    let mut size = window.get_inner_size().unwrap().to_physical(dpi_factor);
+
+    let mut descriptor = wgpu::SwapChainDescriptor {
+        usage: wgpu::TextureUsageFlags::OUTPUT_ATTACHMENT,
+        format: nuklear_backend_wgpurs::TEXTURE_FORMAT,
+        width: size.width as u32,
+        height: size.height as u32,
     };
 
-    let builder = glutin::WindowBuilder::new().with_title("Nuklear Rust Gfx OpenGL Demo").with_dimensions(1280, 800);
-
-    let context = glutin::ContextBuilder::new().with_gl(gl_version).with_vsync(true).with_srgb(false).with_depth_buffer(24);
-    let mut event_loop = glutin::EventsLoop::new();
-    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &event_loop);
-    let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
+    let mut swapchain = device.create_swap_chain(&surface, &descriptor);
 
     let mut cfg = FontConfig::with_size(0.0);
     cfg.set_oversample_h(3);
@@ -123,7 +125,14 @@ fn main() {
 
     let mut allo = Allocator::new_vec();
 
-    let mut drawer = Drawer::new(&mut factory, main_color, 36, MAX_VERTEX_MEMORY, MAX_ELEMENT_MEMORY, Buffer::with_size(&mut allo, MAX_COMMANDS_MEMORY), GfxBackend::OpenGlsl150);
+    let mut drawer = Drawer::new(
+        &mut device,
+        wgpu::Color { r: 1., g: 0.5, b: 0.1, a: 1. },
+        36,
+        MAX_VERTEX_MEMORY,
+        MAX_ELEMENT_MEMORY,
+        Buffer::with_size(&mut allo, MAX_COMMANDS_MEMORY),
+    );
 
     let mut atlas = FontAtlas::new(&mut allo);
 
@@ -144,8 +153,8 @@ fn main() {
     let font_22 = atlas.add_font_with_config(&cfg).unwrap();
 
     let font_tex = {
-        let (b, w, h) = atlas.bake(FontAtlasFormat::NK_FONT_ATLAS_RGBA32);
-        drawer.add_texture(&mut factory, b, w, h)
+        let (b, w, h) = atlas.bake(FontAtlasFormat::Rgba32);
+        drawer.add_texture(&mut device, b, w, h)
     };
 
     let mut null = DrawNullTexture::default();
@@ -164,40 +173,40 @@ fn main() {
 
         font_tex: font_tex,
 
-        unchecked: icon_load(&mut factory, &mut drawer, "res/icon/unchecked.png"),
-        checked: icon_load(&mut factory, &mut drawer, "res/icon/checked.png"),
-        rocket: icon_load(&mut factory, &mut drawer, "res/icon/rocket.png"),
-        cloud: icon_load(&mut factory, &mut drawer, "res/icon/cloud.png"),
-        pen: icon_load(&mut factory, &mut drawer, "res/icon/pen.png"),
-        play: icon_load(&mut factory, &mut drawer, "res/icon/play.png"),
-        pause: icon_load(&mut factory, &mut drawer, "res/icon/pause.png"),
-        stop: icon_load(&mut factory, &mut drawer, "res/icon/stop.png"),
-        prev: icon_load(&mut factory, &mut drawer, "res/icon/prev.png"),
-        next: icon_load(&mut factory, &mut drawer, "res/icon/next.png"),
-        tools: icon_load(&mut factory, &mut drawer, "res/icon/tools.png"),
-        dir: icon_load(&mut factory, &mut drawer, "res/icon/directory.png"),
-        copy: icon_load(&mut factory, &mut drawer, "res/icon/copy.png"),
-        convert: icon_load(&mut factory, &mut drawer, "res/icon/export.png"),
-        del: icon_load(&mut factory, &mut drawer, "res/icon/delete.png"),
-        edit: icon_load(&mut factory, &mut drawer, "res/icon/edit.png"),
+        unchecked: icon_load(&mut device, &mut drawer, "res/icon/unchecked.png"),
+        checked: icon_load(&mut device, &mut drawer, "res/icon/checked.png"),
+        rocket: icon_load(&mut device, &mut drawer, "res/icon/rocket.png"),
+        cloud: icon_load(&mut device, &mut drawer, "res/icon/cloud.png"),
+        pen: icon_load(&mut device, &mut drawer, "res/icon/pen.png"),
+        play: icon_load(&mut device, &mut drawer, "res/icon/play.png"),
+        pause: icon_load(&mut device, &mut drawer, "res/icon/pause.png"),
+        stop: icon_load(&mut device, &mut drawer, "res/icon/stop.png"),
+        prev: icon_load(&mut device, &mut drawer, "res/icon/prev.png"),
+        next: icon_load(&mut device, &mut drawer, "res/icon/next.png"),
+        tools: icon_load(&mut device, &mut drawer, "res/icon/tools.png"),
+        dir: icon_load(&mut device, &mut drawer, "res/icon/directory.png"),
+        copy: icon_load(&mut device, &mut drawer, "res/icon/copy.png"),
+        convert: icon_load(&mut device, &mut drawer, "res/icon/export.png"),
+        del: icon_load(&mut device, &mut drawer, "res/icon/delete.png"),
+        edit: icon_load(&mut device, &mut drawer, "res/icon/edit.png"),
         images: [
-            icon_load(&mut factory, &mut drawer, "res/images/image1.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image2.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image3.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image4.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image5.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image6.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image7.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image8.png"),
-            icon_load(&mut factory, &mut drawer, "res/images/image9.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image1.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image2.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image3.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image4.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image5.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image6.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image7.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image8.png"),
+            icon_load(&mut device, &mut drawer, "res/images/image9.png"),
         ],
         menu: [
-            icon_load(&mut factory, &mut drawer, "res/icon/home.png"),
-            icon_load(&mut factory, &mut drawer, "res/icon/phone.png"),
-            icon_load(&mut factory, &mut drawer, "res/icon/plane.png"),
-            icon_load(&mut factory, &mut drawer, "res/icon/wifi.png"),
-            icon_load(&mut factory, &mut drawer, "res/icon/settings.png"),
-            icon_load(&mut factory, &mut drawer, "res/icon/volume.png"),
+            icon_load(&mut device, &mut drawer, "res/icon/home.png"),
+            icon_load(&mut device, &mut drawer, "res/icon/phone.png"),
+            icon_load(&mut device, &mut drawer, "res/icon/plane.png"),
+            icon_load(&mut device, &mut drawer, "res/icon/wifi.png"),
+            icon_load(&mut device, &mut drawer, "res/icon/settings.png"),
+            icon_load(&mut device, &mut drawer, "res/icon/volume.png"),
         ],
     };
 
@@ -238,61 +247,69 @@ fn main() {
     config.set_curve_segment_count(22);
     config.set_arc_segment_count(22);
     config.set_global_alpha(1.0f32);
-    config.set_shape_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
-    config.set_line_aa(AntiAliasing::NK_ANTI_ALIASING_ON);
+    config.set_shape_aa(AntiAliasing::On);
+    config.set_line_aa(AntiAliasing::On);
 
     let mut closed = false;
     while !closed {
         ctx.input_begin();
         event_loop.poll_events(|event| {
-            if let glutin::Event::WindowEvent { event, .. } = event {
+            if let Event::WindowEvent { event, .. } = event {
                 match event {
-                    glutin::WindowEvent::Closed => closed = true,
-                    glutin::WindowEvent::ReceivedCharacter(c) => {
+                    WindowEvent::CloseRequested => closed = true,
+                    WindowEvent::ReceivedCharacter(c) => {
                         ctx.input_unicode(c);
                     }
-                    glutin::WindowEvent::KeyboardInput {
-                        input: glutin::KeyboardInput { state, virtual_keycode, .. },
+                    WindowEvent::KeyboardInput {
+                        input: KeyboardInput { state, virtual_keycode, .. },
                         ..
                     } => {
                         if let Some(k) = virtual_keycode {
                             let key = match k {
-                                glutin::VirtualKeyCode::Back => Key::NK_KEY_BACKSPACE,
-                                glutin::VirtualKeyCode::Delete => Key::NK_KEY_DEL,
-                                glutin::VirtualKeyCode::Up => Key::NK_KEY_UP,
-                                glutin::VirtualKeyCode::Down => Key::NK_KEY_DOWN,
-                                glutin::VirtualKeyCode::Left => Key::NK_KEY_LEFT,
-                                glutin::VirtualKeyCode::Right => Key::NK_KEY_RIGHT,
-                                _ => Key::NK_KEY_NONE,
+                                VirtualKeyCode::Back => Key::Backspace,
+                                VirtualKeyCode::Delete => Key::Del,
+                                VirtualKeyCode::Up => Key::Up,
+                                VirtualKeyCode::Down => Key::Down,
+                                VirtualKeyCode::Left => Key::Left,
+                                VirtualKeyCode::Right => Key::Right,
+                                _ => Key::None,
                             };
 
-                            ctx.input_key(key, state == glutin::ElementState::Pressed);
+                            ctx.input_key(key, state == ElementState::Pressed);
                         }
                     }
-                    glutin::WindowEvent::CursorMoved { position: (x, y), .. } => {
+                    WindowEvent::CursorMoved { position: LogicalPosition { x, y }, .. } => {
                         mx = x as i32;
                         my = y as i32;
                         ctx.input_motion(x as i32, y as i32);
                     }
-                    glutin::WindowEvent::MouseInput { state, button, .. } => {
+                    WindowEvent::MouseInput { state, button, .. } => {
                         let button = match button {
-                            glutin::MouseButton::Left => Button::NK_BUTTON_LEFT,
-                            glutin::MouseButton::Middle => Button::NK_BUTTON_MIDDLE,
-                            glutin::MouseButton::Right => Button::NK_BUTTON_RIGHT,
-                            _ => Button::NK_BUTTON_MAX,
+                            WinitMouseButton::Left => Button::Left,
+                            WinitMouseButton::Middle => Button::Middle,
+                            WinitMouseButton::Right => Button::Right,
+                            _ => Button::Max,
                         };
 
-                        ctx.input_button(button, mx, my, state == glutin::ElementState::Pressed)
+                        ctx.input_button(button, mx, my, state == ElementState::Pressed)
                     }
-                    glutin::WindowEvent::MouseWheel { delta, .. } => {
-                        if let glutin::MouseScrollDelta::LineDelta(_, y) = delta {
-                            ctx.input_scroll(y * 22f32);
+                    WindowEvent::MouseWheel { delta, .. } => {
+                        if let MouseScrollDelta::LineDelta(x, y) = delta {
+                            ctx.input_scroll(Vec2 { x: x * 22.0, y: y * 22.0 });
                         }
                     }
-                    glutin::WindowEvent::Resized(_, _) => {
-                        let mut main_color = drawer.col.clone().unwrap();
-                        gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
-                        drawer.col = Some(main_color);
+                    WindowEvent::Resized(_) => {
+                        dpi_factor = window.get_hidpi_factor();
+                        size = window.get_inner_size().unwrap().to_physical(dpi_factor);
+
+                        descriptor = wgpu::SwapChainDescriptor {
+                            usage: wgpu::TextureUsageFlags::OUTPUT_ATTACHMENT,
+                            format: nuklear_backend_wgpurs::TEXTURE_FORMAT,
+                            width: size.width as u32,
+                            height: size.height as u32,
+                        };
+
+                        swapchain = device.create_swap_chain(&surface, &descriptor);
                     }
                     _ => (),
                 }
@@ -305,19 +322,18 @@ fn main() {
         }
 
         // println!("{:?}", event);
-        let (fw, fh) = window.get_inner_size().unwrap();
-        let scale = window.hidpi_factor();
+        let LogicalSize { width: fw, height: fh } = window.get_inner_size().unwrap();
+        let scale = window.get_hidpi_factor() as f32;
         let scale = Vec2 { x: scale, y: scale };
 
         basic_demo(&mut ctx, &mut media, &mut basic_state);
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
-        encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
-        drawer.draw(&mut ctx, &mut config, &mut encoder, &mut factory, fw, fh, scale);
-        encoder.flush(&mut device);
-        window.swap_buffers().unwrap();
-        device.cleanup();
+        let mut encoder: wgpu::CommandEncoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
+
+        drawer.draw(&mut ctx, &mut config, &mut encoder, &swapchain.get_next_texture().view, &mut device, fw as u32, fh as u32, scale);
+        device.get_queue().submit(&[encoder.finish()]);
 
         ::std::thread::sleep(::std::time::Duration::from_millis(20));
 
@@ -328,13 +344,13 @@ fn main() {
 fn ui_header(ctx: &mut Context, media: &mut Media, title: &str) {
     ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
     ctx.layout_row_dynamic(20f32, 1);
-    ctx.text(title, TextAlignment::NK_TEXT_LEFT as Flags);
+    ctx.text(title, TextAlignment::Left as Flags);
 }
 
 const RATIO_W: [f32; 2] = [0.15f32, 0.85f32];
 fn ui_widget(ctx: &mut Context, media: &mut Media, height: f32) {
     ctx.style_set_font(media.font_atlas.font(media.font_22).unwrap().handle());
-    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_W);
+    ctx.layout_row(LayoutFormat::Dynamic, height, &RATIO_W);
     // ctx.layout_row_dynamic(height, 1);
     ctx.spacing(1);
 }
@@ -342,7 +358,7 @@ fn ui_widget(ctx: &mut Context, media: &mut Media, height: f32) {
 const RATIO_WC: [f32; 3] = [0.15f32, 0.50f32, 0.35f32];
 fn ui_widget_centered(ctx: &mut Context, media: &mut Media, height: f32) {
     ctx.style_set_font(media.font_atlas.font(media.font_22).unwrap().handle());
-    ctx.layout_row(LayoutFormat::NK_DYNAMIC, height, &RATIO_WC);
+    ctx.layout_row(LayoutFormat::Dynamic, height, &RATIO_WC);
     ctx.spacing(1);
 }
 
@@ -355,27 +371,27 @@ fn grid_demo(ctx: &mut Context, media: &mut Media, state: &mut GridState) {
     if ctx.begin(
         nk_string!("Grid Nuklear Rust!"),
         Rect { x: 600f32, y: 350f32, w: 275f32, h: 250f32 },
-        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags | PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+        PanelFlags::Border as Flags | PanelFlags::Movable as Flags | PanelFlags::Title as Flags | PanelFlags::NoScrollbar as Flags,
     ) {
         ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
         ctx.layout_row_dynamic(30f32, 2);
-        ctx.text("Free type:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string_custom_filter(EditType::NK_EDIT_FIELD as Flags, &mut state.text[3], &mut state.text_len[3], free_type);
-        ctx.text("Floating point:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[0], &mut state.text_len[0], NK_FILTER_FLOAT);
-        ctx.text("Hexadecimal:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[1], &mut state.text_len[1], NK_FILTER_HEX);
-        ctx.text("Binary:", TextAlignment::NK_TEXT_RIGHT as Flags);
-        ctx.edit_string(EditType::NK_EDIT_FIELD as Flags, &mut state.text[2], &mut state.text_len[2], NK_FILTER_BINARY);
-        ctx.text("Checkbox:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.text("Free type:", TextAlignment::Right as Flags);
+        ctx.edit_string_custom_filter(EditType::Field as Flags, &mut state.text[3], &mut state.text_len[3], free_type);
+        ctx.text("Floating point:", TextAlignment::Right as Flags);
+        ctx.edit_string(EditType::Field as Flags, &mut state.text[0], &mut state.text_len[0], NK_FILTER_FLOAT);
+        ctx.text("Hexadecimal:", TextAlignment::Right as Flags);
+        ctx.edit_string(EditType::Field as Flags, &mut state.text[1], &mut state.text_len[1], NK_FILTER_HEX);
+        ctx.text("Binary:", TextAlignment::Right as Flags);
+        ctx.edit_string(EditType::Field as Flags, &mut state.text[2], &mut state.text_len[2], NK_FILTER_BINARY);
+        ctx.text("Checkbox:", TextAlignment::Right as Flags);
         ctx.checkbox_text("Check me", &mut state.check);
-        ctx.text("Combobox:", TextAlignment::NK_TEXT_RIGHT as Flags);
+        ctx.text("Combobox:", TextAlignment::Right as Flags);
 
         let widget_width = ctx.widget_width();
         if ctx.combo_begin_text(state.items[state.selected_item], Vec2 { x: widget_width, y: 200f32 }) {
             ctx.layout_row_dynamic(25f32, 1);
             for i in 0..state.items.len() {
-                if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
+                if ctx.combo_item_text(state.items[i], TextAlignment::Left as Flags) {
                     state.selected_item = i;
                 }
             }
@@ -392,7 +408,7 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     ctx.begin(
         nk_string!("Button Nuklear Rust!"),
         Rect { x: 50f32, y: 50f32, w: 255f32, h: 610f32 },
-        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags,
+        PanelFlags::Border as Flags | PanelFlags::Movable as Flags | PanelFlags::Title as Flags,
     );
 
     // ------------------------------------------------
@@ -405,11 +421,11 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
         if ctx.menu_begin_image(nk_string!("Music"), media.play.clone(), Vec2 { x: 110f32, y: 120f32 }) {
             // settings
             ctx.layout_row_dynamic(25f32, 1);
-            ctx.menu_item_image_text(media.play.clone(), "Play", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.stop.clone(), "Stop", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.pause.clone(), "Pause", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.next.clone(), "Next", TextAlignment::NK_TEXT_RIGHT as Flags);
-            ctx.menu_item_image_text(media.prev.clone(), "Prev", TextAlignment::NK_TEXT_RIGHT as Flags);
+            ctx.menu_item_image_text(media.play.clone(), "Play", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.stop.clone(), "Stop", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.pause.clone(), "Pause", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.next.clone(), "Next", TextAlignment::Right as Flags);
+            ctx.menu_item_image_text(media.prev.clone(), "Prev", TextAlignment::Right as Flags);
             ctx.menu_end();
         }
         ctx.button_image(media.tools.clone());
@@ -427,7 +443,7 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
         println!("pushed!");
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(media.rocket.clone(), "Styled", TextAlignment::NK_TEXT_CENTERED as Flags) {
+    if ctx.button_image_text(media.rocket.clone(), "Styled", TextAlignment::Centered as Flags) {
         println!("rocket!");
     }
 
@@ -445,17 +461,17 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     // ------------------------------------------------
     ui_header(ctx, media, "Toggle buttons");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle0 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
+    if ctx.button_image_text(if state.toggle0 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::Left as Flags) {
         state.toggle0 = !state.toggle0;
     }
 
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle1 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
+    if ctx.button_image_text(if state.toggle1 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::Left as Flags) {
         state.toggle1 = !state.toggle1;
     }
 
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(if state.toggle2 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::NK_TEXT_LEFT as Flags) {
+    if ctx.button_image_text(if state.toggle2 { media.checked.clone() } else { media.unchecked.clone() }, "Toggle", TextAlignment::Left as Flags) {
         state.toggle2 = !state.toggle2;
     }
 
@@ -464,27 +480,15 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     // ------------------------------------------------
     ui_header(ctx, media, "Radio buttons");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_symbol_text(
-        if state.option == 0 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
-        "Select 1",
-        TextAlignment::NK_TEXT_LEFT as Flags,
-    ) {
+    if ctx.button_symbol_text(if state.option == 0 { SymbolType::CircleOutline } else { SymbolType::CircleSolid }, "Select 1", TextAlignment::Left as Flags) {
         state.option = 0;
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_symbol_text(
-        if state.option == 1 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
-        "Select 2",
-        TextAlignment::NK_TEXT_LEFT as Flags,
-    ) {
+    if ctx.button_symbol_text(if state.option == 1 { SymbolType::CircleOutline } else { SymbolType::CircleSolid }, "Select 2", TextAlignment::Left as Flags) {
         state.option = 1;
     }
     ui_widget(ctx, media, 35f32);
-    if ctx.button_symbol_text(
-        if state.option == 2 { SymbolType::NK_SYMBOL_CIRCLE_OUTLINE } else { SymbolType::NK_SYMBOL_CIRCLE_SOLID },
-        "Select 3",
-        TextAlignment::NK_TEXT_LEFT as Flags,
-    ) {
+    if ctx.button_symbol_text(if state.option == 2 { SymbolType::CircleOutline } else { SymbolType::CircleSolid }, "Select 3", TextAlignment::Left as Flags) {
         state.option = 2;
     }
 
@@ -493,18 +497,18 @@ fn button_demo(ctx: &mut Context, media: &mut Media, state: &mut ButtonState) {
     // ------------------------------------------------
     ctx.style_set_font(media.font_atlas.font(media.font_18).unwrap().handle());
     let bounds = ctx.window_get_bounds();
-    if ctx.contextual_begin(PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags, Vec2 { x: 150f32, y: 300f32 }, bounds) {
+    if ctx.contextual_begin(PanelFlags::NoScrollbar as Flags, Vec2 { x: 150f32, y: 300f32 }, bounds) {
         ctx.layout_row_dynamic(30f32, 1);
-        if ctx.contextual_item_image_text(media.copy.clone(), "Clone", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.copy.clone(), "Clone", TextAlignment::Right as Flags) {
             println!("pressed clone!");
         }
-        if ctx.contextual_item_image_text(media.del.clone(), "Delete", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.del.clone(), "Delete", TextAlignment::Right as Flags) {
             println!("pressed delete!");
         }
-        if ctx.contextual_item_image_text(media.convert.clone(), "Convert", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.convert.clone(), "Convert", TextAlignment::Right as Flags) {
             println!("pressed convert!");
         }
-        if ctx.contextual_item_image_text(media.edit.clone(), "Edit", TextAlignment::NK_TEXT_RIGHT as Flags) {
+        if ctx.contextual_item_image_text(media.edit.clone(), "Edit", TextAlignment::Right as Flags) {
             println!("pressed edit!");
         }
         ctx.contextual_end();
@@ -518,7 +522,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     ctx.begin(
         nk_string!("Basic Nuklear Rust!"),
         Rect { x: 320f32, y: 50f32, w: 275f32, h: 610f32 },
-        PanelFlags::NK_WINDOW_BORDER as Flags | PanelFlags::NK_WINDOW_MOVABLE as Flags | PanelFlags::NK_WINDOW_TITLE as Flags,
+        PanelFlags::Border as Flags | PanelFlags::Movable as Flags | PanelFlags::Title as Flags,
     );
 
     // ------------------------------------------------
@@ -527,7 +531,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
 
     ui_header(ctx, media, "Popup & Scrollbar & Images");
     ui_widget(ctx, media, 35f32);
-    if ctx.button_image_text(media.dir.clone(), "Images", TextAlignment::NK_TEXT_CENTERED as Flags) {
+    if ctx.button_image_text(media.dir.clone(), "Images", TextAlignment::Centered as Flags) {
         state.image_active = !state.image_active;
     }
 
@@ -542,7 +546,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     //                  IMAGE POPUP
     // ------------------------------------------------
     if state.image_active {
-        if ctx.popup_begin(PopupType::NK_POPUP_STATIC, nk_string!("Image Popup"), 0, Rect { x: 265f32, y: 0f32, w: 320f32, h: 220f32 }) {
+        if ctx.popup_begin(PopupType::Static, nk_string!("Image Popup"), 0, Rect { x: 265f32, y: 0f32, w: 320f32, h: 220f32 }) {
             ctx.layout_row_static(82f32, 82, 3);
             for i in 0..9 {
                 if ctx.button_image(media.images[i].clone()) {
@@ -563,7 +567,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     if ctx.combo_begin_text(state.items[state.selected_item], Vec2 { x: widget_width, y: 200f32 }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_text(state.items[i], TextAlignment::NK_TEXT_LEFT as Flags) {
+            if ctx.combo_item_text(state.items[i], TextAlignment::Left as Flags) {
                 state.selected_item = i;
             }
         }
@@ -575,7 +579,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     if ctx.combo_begin_image_text(state.items[state.selected_icon], media.images[state.selected_icon].clone(), Vec2 { x: widget_width, y: 200f32 }) {
         ctx.layout_row_dynamic(35f32, 1);
         for i in 0..3 {
-            if ctx.combo_item_image_text(media.images[i].clone(), state.items[i], TextAlignment::NK_TEXT_RIGHT as Flags) {
+            if ctx.combo_item_image_text(media.images[i].clone(), state.items[i], TextAlignment::Right as Flags) {
                 state.selected_icon = i;
             }
         }
@@ -602,7 +606,7 @@ fn basic_demo(ctx: &mut Context, media: &mut Media, state: &mut BasicState) {
     //                  PIEMENU
     // ------------------------------------------------
     let bounds = ctx.window_get_bounds();
-    if ctx.input().is_mouse_click_down_in_rect(Button::NK_BUTTON_RIGHT, bounds, true) {
+    if ctx.input().is_mouse_click_down_in_rect(Button::Right, bounds, true) {
         state.piemenu_pos = ctx.input().mouse().pos().clone();
         state.piemenu_active = true;
     }
@@ -643,9 +647,9 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
     ctx.style_mut().window_mut().set_padding(Vec2 { x: 0f32, y: 0f32 });
 
     if ctx.popup_begin(
-        PopupType::NK_POPUP_STATIC,
+        PopupType::Static,
         nk_string!("piemenu"),
-        PanelFlags::NK_WINDOW_NO_SCROLLBAR as Flags,
+        PanelFlags::NoScrollbar as Flags,
         Rect {
             x: pos.x - total_space.x - radius,
             y: pos.y - radius - total_space.y,
@@ -727,7 +731,7 @@ fn ui_piemenu(ctx: &mut Context, pos: Vec2, radius: f32, icons: &[Image]) -> i32
             out.draw_image(bounds, &icons[active_item], color_rgb(255, 255, 255));
         }
         ctx.layout_space_end();
-        if !ctx.input().is_mouse_down(Button::NK_BUTTON_RIGHT) {
+        if !ctx.input().is_mouse_down(Button::Right) {
             ctx.popup_close();
             ret = active_item as i32;
         }
