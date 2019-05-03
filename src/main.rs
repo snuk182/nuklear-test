@@ -331,8 +331,9 @@ fn main() {
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
         let mut encoder: wgpu::CommandEncoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
-
-        drawer.draw(&mut ctx, &mut config, &mut encoder, &swapchain.get_next_texture().view, &mut device, fw as u32, fh as u32, scale);
+		let canvas = swapchain.get_next_texture();
+		
+        drawer.draw(&mut ctx, &mut config, &mut encoder, &canvas.view, &mut device, fw as u32, fh as u32, scale);
         device.get_queue().submit(&[encoder.finish()]);
 
         ::std::thread::sleep(::std::time::Duration::from_millis(20));
