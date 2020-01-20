@@ -6,8 +6,9 @@ edition = "2018"
 
 [dependencies]
 nuklear-rust = {version = "~0.6"}
-nuklear-backend-wgpurs = {version = "~0.1", features = ["dx12"]}
-wgpu = "~0.2"
+nuklear-backend-wgpurs = {version = "~0.2", path = "../nuklear-backend-wgpurs"}
+winit = "*"
+wgpu = "~0.4"
 image = "~0.21"
 
 [[bin]]
