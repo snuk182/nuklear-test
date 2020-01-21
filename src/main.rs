@@ -1,9 +1,11 @@
 use nuklear::*;
 use nuklear_backend_wgpurs::Drawer;
 
-use wgpu::winit::{
-    dpi::{LogicalPosition, LogicalSize},
-    ElementState, Event, EventsLoop, KeyboardInput, MouseButton as WinitMouseButton, MouseScrollDelta, VirtualKeyCode, WindowBuilder, WindowEvent,
+use winit::{
+    dpi::{PhysicalPosition, LogicalSize, PhysicalSize},
+    window::WindowBuilder,
+    event_loop::{EventLoop,ControlFlow},
+    event::{ElementState, Event, KeyboardInput, MouseButton as WinitMouseButton, MouseScrollDelta, VirtualKeyCode, WindowEvent},
 };
 
 use std::fs::*;
@@ -79,40 +81,44 @@ impl Drop for Media {
     }
 }
 
-fn icon_load(device: &mut wgpu::Device, drawer: &mut Drawer, filename: &str) -> Image {
+fn icon_load(device: &mut wgpu::Device, queue: &mut wgpu::Queue, drawer: &mut Drawer, filename: &str) -> Image {
     let img = image::load(BufReader::new(File::open(filename).unwrap()), image::PNG).unwrap().to_bgra();
 
     let (w, h) = img.dimensions();
-    let mut hnd = drawer.add_texture(device, &img, w, h);
+    let mut hnd = drawer.add_texture(device, queue, &img, w, h);
 
     Image::with_id(hnd.id().unwrap())
 }
 
 fn main() {
-    let instance = wgpu::Instance::new();
+    let adapter = wgpu::Adapter::request(
+        &wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::Default,
+            backends: wgpu::BackendBit::PRIMARY,
+        },
+    ).unwrap();
 
-    let adapter = instance.get_adapter(&wgpu::AdapterDescriptor {
-        power_preference: wgpu::PowerPreference::HighPerformance,
+    let (mut device, mut queue) = adapter.request_device(&wgpu::DeviceDescriptor {
+        extensions: wgpu::Extensions {
+            anisotropic_filtering: false,
+        },
+        limits: wgpu::Limits::default(),
     });
 
-    let mut device = adapter.create_device(&wgpu::DeviceDescriptor {
-        extensions: wgpu::Extensions { anisotropic_filtering: false },
-    });
+    let event_loop = EventLoop::new();
 
-    let mut event_loop = EventsLoop::new();
+    let window = WindowBuilder::new().with_inner_size(LogicalSize { width: 1280., height: 800. }).with_title("Nuklear Rust Wgpu-rs Demo").build(&event_loop).unwrap();
 
-    let window = WindowBuilder::new().with_dimensions(LogicalSize { width: 1280., height: 800. }).with_title("Nuklear Rust Wgpu-rs Demo").build(&event_loop).unwrap();
+    let surface = wgpu::Surface::create(&window);
 
-    let surface = instance.create_surface(&window);
-
-    let mut dpi_factor = window.get_hidpi_factor();
-    let mut size = window.get_inner_size().unwrap().to_physical(dpi_factor);
+    let mut size = window.inner_size();
 
     let mut descriptor = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsageFlags::OUTPUT_ATTACHMENT,
+        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
         format: nuklear_backend_wgpurs::TEXTURE_FORMAT,
         width: size.width as u32,
         height: size.height as u32,
+        present_mode: wgpu::PresentMode::Vsync,
     };
 
     let mut swapchain = device.create_swap_chain(&surface, &descriptor);
@@ -154,7 +160,7 @@ fn main() {
 
     let font_tex = {
         let (b, w, h) = atlas.bake(FontAtlasFormat::Rgba32);
-        drawer.add_texture(&mut device, b, w, h)
+        drawer.add_texture(&mut device, &mut queue, b, w, h)
     };
 
     let mut null = DrawNullTexture::default();
@@ -173,40 +179,40 @@ fn main() {
 
         font_tex: font_tex,
 
-        unchecked: icon_load(&mut device, &mut drawer, "res/icon/unchecked.png"),
-        checked: icon_load(&mut device, &mut drawer, "res/icon/checked.png"),
-        rocket: icon_load(&mut device, &mut drawer, "res/icon/rocket.png"),
-        cloud: icon_load(&mut device, &mut drawer, "res/icon/cloud.png"),
-        pen: icon_load(&mut device, &mut drawer, "res/icon/pen.png"),
-        play: icon_load(&mut device, &mut drawer, "res/icon/play.png"),
-        pause: icon_load(&mut device, &mut drawer, "res/icon/pause.png"),
-        stop: icon_load(&mut device, &mut drawer, "res/icon/stop.png"),
-        prev: icon_load(&mut device, &mut drawer, "res/icon/prev.png"),
-        next: icon_load(&mut device, &mut drawer, "res/icon/next.png"),
-        tools: icon_load(&mut device, &mut drawer, "res/icon/tools.png"),
-        dir: icon_load(&mut device, &mut drawer, "res/icon/directory.png"),
-        copy: icon_load(&mut device, &mut drawer, "res/icon/copy.png"),
-        convert: icon_load(&mut device, &mut drawer, "res/icon/export.png"),
-        del: icon_load(&mut device, &mut drawer, "res/icon/delete.png"),
-        edit: icon_load(&mut device, &mut drawer, "res/icon/edit.png"),
+        unchecked: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/unchecked.png"),
+        checked: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/checked.png"),
+        rocket: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/rocket.png"),
+        cloud: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/cloud.png"),
+        pen: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/pen.png"),
+        play: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/play.png"),
+        pause: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/pause.png"),
+        stop: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/stop.png"),
+        prev: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/prev.png"),
+        next: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/next.png"),
+        tools: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/tools.png"),
+        dir: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/directory.png"),
+        copy: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/copy.png"),
+        convert: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/export.png"),
+        del: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/delete.png"),
+        edit: icon_load(&mut device, &mut queue, &mut drawer, "res/icon/edit.png"),
         images: [
-            icon_load(&mut device, &mut drawer, "res/images/image1.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image2.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image3.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image4.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image5.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image6.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image7.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image8.png"),
-            icon_load(&mut device, &mut drawer, "res/images/image9.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image1.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image2.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image3.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image4.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image5.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image6.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image7.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image8.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/images/image9.png"),
         ],
         menu: [
-            icon_load(&mut device, &mut drawer, "res/icon/home.png"),
-            icon_load(&mut device, &mut drawer, "res/icon/phone.png"),
-            icon_load(&mut device, &mut drawer, "res/icon/plane.png"),
-            icon_load(&mut device, &mut drawer, "res/icon/wifi.png"),
-            icon_load(&mut device, &mut drawer, "res/icon/settings.png"),
-            icon_load(&mut device, &mut drawer, "res/icon/volume.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/icon/home.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/icon/phone.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/icon/plane.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/icon/wifi.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/icon/settings.png"),
+            icon_load(&mut device, &mut queue, &mut drawer, "res/icon/volume.png"),
         ],
     };
 
@@ -250,13 +256,24 @@ fn main() {
     config.set_shape_aa(AntiAliasing::On);
     config.set_line_aa(AntiAliasing::On);
 
-    let mut closed = false;
-    while !closed {
-        ctx.input_begin();
-        event_loop.poll_events(|event| {
-            if let Event::WindowEvent { event, .. } = event {
+    event_loop.run(move |event, _, flow| {
+        *flow = ControlFlow::Wait;
+        match event { 
+            Event::MainEventsCleared => {
+                ctx.input_end();
+                
+                basic_demo(&mut ctx, &mut media, &mut basic_state);
+                button_demo(&mut ctx, &mut media, &mut button_state);
+                grid_demo(&mut ctx, &mut media, &mut grid_state);
+        
+                window.request_redraw();
+            }, 
+            Event::NewEvents(_) => {
+                ctx.input_begin();
+            }  
+            Event::WindowEvent { event, .. } => {
                 match event {
-                    WindowEvent::CloseRequested => closed = true,
+                    WindowEvent::CloseRequested => *flow = ControlFlow::Exit,
                     WindowEvent::ReceivedCharacter(c) => {
                         ctx.input_unicode(c);
                     }
@@ -278,7 +295,7 @@ fn main() {
                             ctx.input_key(key, state == ElementState::Pressed);
                         }
                     }
-                    WindowEvent::CursorMoved { position: LogicalPosition { x, y }, .. } => {
+                    WindowEvent::CursorMoved { position: PhysicalPosition { x, y }, .. } => {
                         mx = x as i32;
                         my = y as i32;
                         ctx.input_motion(x as i32, y as i32);
@@ -299,14 +316,14 @@ fn main() {
                         }
                     }
                     WindowEvent::Resized(_) => {
-                        dpi_factor = window.get_hidpi_factor();
-                        size = window.get_inner_size().unwrap().to_physical(dpi_factor);
+                        size = window.inner_size();
 
                         descriptor = wgpu::SwapChainDescriptor {
-                            usage: wgpu::TextureUsageFlags::OUTPUT_ATTACHMENT,
+                            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
                             format: nuklear_backend_wgpurs::TEXTURE_FORMAT,
                             width: size.width as u32,
                             height: size.height as u32,
+                            present_mode: wgpu::PresentMode::Vsync,
                         };
 
                         swapchain = device.create_swap_chain(&surface, &descriptor);
@@ -314,32 +331,22 @@ fn main() {
                     _ => (),
                 }
             }
-        });
-        ctx.input_end();
-
-        if closed {
-            break;
+            Event::RedrawRequested(_) => {
+                let PhysicalSize { width: fw, height: fh } = window.inner_size();
+                let scale = Vec2 { x: 1., y: 1. };
+        
+                let mut encoder: wgpu::CommandEncoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
+                let frame = swapchain.get_next_texture();
+        
+                drawer.draw(&mut ctx, &mut config, &mut encoder, &frame.view, &mut device, fw as u32, fh as u32, scale);
+                queue.submit(&[encoder.finish()]);
+            }
+            Event::RedrawEventsCleared => {
+                ctx.clear();
+            }
+            _ => {}
         }
-
-        // println!("{:?}", event);
-        let LogicalSize { width: fw, height: fh } = window.get_inner_size().unwrap();
-        let scale = window.get_hidpi_factor() as f32;
-        let scale = Vec2 { x: scale, y: scale };
-
-        basic_demo(&mut ctx, &mut media, &mut basic_state);
-        button_demo(&mut ctx, &mut media, &mut button_state);
-        grid_demo(&mut ctx, &mut media, &mut grid_state);
-
-        let mut encoder: wgpu::CommandEncoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
-		let canvas = swapchain.get_next_texture();
-		
-        drawer.draw(&mut ctx, &mut config, &mut encoder, &canvas.view, &mut device, fw as u32, fh as u32, scale);
-        device.get_queue().submit(&[encoder.finish()]);
-
-        ::std::thread::sleep(::std::time::Duration::from_millis(20));
-
-        ctx.clear();
-    }
+    });
 }
 
 fn ui_header(ctx: &mut Context, media: &mut Media, title: &str) {
