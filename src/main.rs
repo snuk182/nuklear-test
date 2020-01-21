@@ -257,10 +257,15 @@ fn main() {
     config.set_line_aa(AntiAliasing::On);
 
     event_loop.run(move |event, _, flow| {
-        *flow = ControlFlow::Poll;
+        *flow = ControlFlow::Wait;
         match event { 
             Event::MainEventsCleared => {
                 ctx.input_end();
+                
+                basic_demo(&mut ctx, &mut media, &mut basic_state);
+                button_demo(&mut ctx, &mut media, &mut button_state);
+                grid_demo(&mut ctx, &mut media, &mut grid_state);
+        
                 window.request_redraw();
             }, 
             Event::NewEvents(_) => {
@@ -329,10 +334,6 @@ fn main() {
             Event::RedrawRequested(_) => {
                 let PhysicalSize { width: fw, height: fh } = window.inner_size();
                 let scale = Vec2 { x: 1., y: 1. };
-        
-                basic_demo(&mut ctx, &mut media, &mut basic_state);
-                button_demo(&mut ctx, &mut media, &mut button_state);
-                grid_demo(&mut ctx, &mut media, &mut grid_state);
         
                 let mut encoder: wgpu::CommandEncoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { todo: 0 });
                 let frame = swapchain.get_next_texture();
