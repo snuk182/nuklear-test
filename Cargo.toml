@@ -5,7 +5,7 @@ authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
 nuklear-rust = {version = "~0.6"}
-nuklear-backend-gfx = {version="~0.9", path="../nuklear-backend-gfx"}
+nuklear-backend-gfx = "~0.9"
 gfx_device_gl = "~0.16"
 gfx_window_glutin = "~0.30"
 gfx = "~0.18"
