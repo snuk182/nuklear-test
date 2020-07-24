@@ -10,8 +10,8 @@ extern crate glutin;
 use nuklear::*;
 use nuklear_backend_gfx::{Drawer, GfxBackend};
 
-use gfx::Device as Gd;
-use glutin::{GlContext, GlRequest};
+use glutin::GlRequest;
+use glutin::dpi::{LogicalSize, LogicalPosition};
 
 use std::fs::*;
 use std::io::BufReader;
@@ -107,11 +107,11 @@ fn main() {
         opengl_version: (3, 3),
     };
 
-    let builder = glutin::WindowBuilder::new().with_title("Nuklear Rust Gfx OpenGL Demo").with_dimensions(1280, 800);
+    let builder = glutin::WindowBuilder::new().with_title("Nuklear Rust Gfx OpenGL Demo").with_dimensions(LogicalSize { width: 1280., height: 800. });
 
     let context = glutin::ContextBuilder::new().with_gl(gl_version).with_vsync(true).with_srgb(false).with_depth_buffer(24);
     let mut event_loop = glutin::EventsLoop::new();
-    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &event_loop);
+    let (window, mut device, mut factory, main_color, mut main_depth) = gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &event_loop).unwrap();
     let mut encoder: gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
     let mut cfg = FontConfig::with_size(0.0);
@@ -246,7 +246,7 @@ fn main() {
         event_loop.poll_events(|event| {
             if let glutin::Event::WindowEvent { event, .. } = event {
                 match event {
-                    glutin::WindowEvent::Closed => closed = true,
+                    glutin::WindowEvent::CloseRequested => closed = true,
                     glutin::WindowEvent::ReceivedCharacter(c) => {
                         ctx.input_unicode(c);
                     }
@@ -268,7 +268,7 @@ fn main() {
                             ctx.input_key(key, state == glutin::ElementState::Pressed);
                         }
                     }
-                    glutin::WindowEvent::CursorMoved { position: (x, y), .. } => {
+                    glutin::WindowEvent::CursorMoved { position: LogicalPosition { x, y }, .. } => {
                         mx = x as i32;
                         my = y as i32;
                         ctx.input_motion(x as i32, y as i32);
@@ -288,7 +288,7 @@ fn main() {
                             ctx.input_scroll(Vec2 { x: x * 22f32, y: y * 22f32 });
                         }
                     }
-                    glutin::WindowEvent::Resized(_, _) => {
+                    glutin::WindowEvent::Resized(_) => {
                         let mut main_color = drawer.col.clone().unwrap();
                         gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
                         drawer.col = Some(main_color);
@@ -304,20 +304,18 @@ fn main() {
         }
 
         // println!("{:?}", event);
-        let (fw, fh) = window.get_inner_size().unwrap();
-        let scale = window.hidpi_factor();
-        let scale = Vec2 { x: scale, y: scale };
+        let LogicalSize { width, height } = window.get_inner_size().unwrap();
+        let scale = Vec2 { x: 1., y: 1. };
 
         basic_demo(&mut ctx, &mut media, &mut basic_state);
         button_demo(&mut ctx, &mut media, &mut button_state);
         grid_demo(&mut ctx, &mut media, &mut grid_state);
 
         encoder.clear(drawer.col.as_ref().unwrap(), [0.1f32, 0.2f32, 0.3f32, 1.0f32]);
-        drawer.draw(&mut ctx, &mut config, &mut encoder, &mut factory, fw, fh, scale);
+        drawer.draw(&mut ctx, &mut config, &mut encoder, &mut factory, width as u32, height as u32, scale);
         encoder.flush(&mut device);
         window.swap_buffers().unwrap();
-        device.cleanup();
-
+        
         ::std::thread::sleep(::std::time::Duration::from_millis(20));
 
         ctx.clear();
@@ -346,7 +344,7 @@ fn ui_widget_centered(ctx: &mut Context, media: &mut Media, height: f32) {
 }
 
 fn free_type(_: &TextEdit, c: char) -> bool {
-    (c > '\u{0030}')
+    c > '\u{0030}'
 }
 
 fn grid_demo(ctx: &mut Context, media: &mut Media, state: &mut GridState) {
