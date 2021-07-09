@@ -1,12 +1,12 @@
 [package]
 name = "nr-test"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["snuk182 <snuk188@gmail.com>"]
 
 [dependencies]
-nuklear-rust = {version = "~0.5", features = ["rust_allocator"] }
-nuklear-backend-glium = "~0.3"
-glium = {version = "~0.22", features = ["glutin"]}
+nuklear-rust = {version = "~0.6"}
+nuklear-backend-glium = {version = "~0.5"}
+glium = {version = "~0.30", features = ["glutin"]}
 image = "*"
 
 [[bin]]
